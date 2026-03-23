@@ -1,0 +1,80 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:16-alpine
+    container_name: automata_db
+    environment:
+      POSTGRES_DB: automata_ai
+      POSTGRES_USER: automata
+      POSTGRES_PASSWORD: automata_secure_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - automata_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U automata"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Ollama LLM Service (GPU-enabled)
+  ollama:
+    image: ollama/ollama:latest
+    container_name: automata_ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0:11434
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - automata_network
+    # Uncomment the following lines if you have NVIDIA GPU and nvidia-docker installed
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Python Agent Backend
+  agente:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: automata_agente
+    environment:
+      DATABASE_URL: postgresql://automata:automata_secure_password@db:5432/automata_ai
+      OLLAMA_BASE_URL: http://ollama:11434
+      PYTHONUNBUFFERED: 1
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    networks:
+      - automata_network
+    command: python -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+volumes:
+  postgres_data:
+  ollama_data:
+
+networks:
+  automata_network:
+    driver: bridge

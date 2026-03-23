@@ -1,0 +1,1 @@
+# Dominio del Núcleo Hexagonal

@@ -1,0 +1,482 @@
+/* ============================================
+   TEMA JEIKEI DESIGN SYSTEM - AutomataAI
+   ============================================ */
+
+:root {
+    /* Colores principales */
+    --bg-primary: #05070a;
+    --bg-secondary: #0b0f14;
+    --bg-tertiary: #111111;
+    
+    /* Acentos neón */
+    --neon-green: #00ff99;
+    --neon-cyan: #00ffe1;
+    --neon-blue: #00e5ff;
+    
+    /* Texto */
+    --text-primary: #ffffff;
+    --text-secondary: #b3b3b3;
+    --text-tertiary: #808080;
+    
+    /* Sombras */
+    --shadow-glass: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+    --shadow-neon-green: 0 0 12px rgba(0, 255, 156, 0.4);
+    --shadow-neon-cyan: 0 0 12px rgba(0, 255, 225, 0.4);
+    
+    /* Espaciado */
+    --spacing-xs: 0.25rem;
+    --spacing-sm: 0.5rem;
+    --spacing-md: 1rem;
+    --spacing-lg: 1.5rem;
+    --spacing-xl: 2rem;
+    --spacing-2xl: 3rem;
+}
+
+/* Reset y base */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html, body {
+    width: 100%;
+    height: 100%;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: 'Inter', sans-serif;
+    line-height: 1.6;
+}
+
+body {
+    overflow: hidden;
+}
+
+/* Scrollbar personalizado */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--bg-secondary);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--neon-green);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--neon-cyan);
+}
+
+/* Contenedor principal */
+#app {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+/* ============================================
+   COMPONENTES
+   ============================================ */
+
+/* Contenedor principal del dashboard */
+.dashboard {
+    display: grid;
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+    height: 100vh;
+    gap: 0;
+}
+
+/* Header */
+.header {
+    background: linear-gradient(135deg, rgba(0, 255, 156, 0.05), rgba(0, 255, 225, 0.05));
+    border-bottom: 1px solid rgba(0, 255, 156, 0.2);
+    padding: var(--spacing-lg) var(--spacing-2xl);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    backdrop-filter: blur(10px);
+}
+
+.header h1 {
+    font-family: 'Fira Code', monospace;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--neon-green);
+    letter-spacing: 2px;
+}
+
+.header-status {
+    display: flex;
+    gap: var(--spacing-lg);
+    align-items: center;
+}
+
+.status-badge {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm) var(--spacing-md);
+    background: rgba(0, 255, 156, 0.1);
+    border: 1px solid rgba(0, 255, 156, 0.3);
+    border-radius: 8px;
+    font-family: 'Fira Code', monospace;
+    font-size: 0.875rem;
+}
+
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--neon-green);
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+/* Contenido principal */
+.main-content {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--spacing-xl);
+    padding: var(--spacing-2xl);
+    overflow-y: auto;
+    background: var(--bg-primary);
+}
+
+/* Panel de KPIs */
+.kpi-panel {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--spacing-lg);
+    grid-column: 1 / -1;
+}
+
+/* Tarjeta KPI */
+.kpi-card {
+    background: rgba(11, 15, 20, 0.45);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(0, 255, 156, 0.2);
+    border-radius: 16px;
+    padding: var(--spacing-lg);
+    transition: all 0.3s ease;
+    box-shadow: var(--shadow-glass);
+}
+
+.kpi-card:hover {
+    border-color: rgba(0, 255, 156, 0.4);
+    box-shadow: 0 0 40px rgba(0, 255, 156, 0.1);
+}
+
+.kpi-label {
+    font-family: 'Fira Code', monospace;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: var(--spacing-md);
+}
+
+.kpi-value {
+    font-family: 'Fira Code', monospace;
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--neon-green);
+    margin-bottom: var(--spacing-sm);
+}
+
+.kpi-change {
+    font-family: 'Fira Code', monospace;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+}
+
+/* Panel de logs */
+.logs-panel {
+    background: rgba(11, 15, 20, 0.45);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(0, 255, 156, 0.2);
+    border-radius: 16px;
+    padding: var(--spacing-lg);
+    display: flex;
+    flex-direction: column;
+    box-shadow: var(--shadow-glass);
+    grid-column: 1;
+    grid-row: 2;
+}
+
+.logs-header {
+    font-family: 'Fira Code', monospace;
+    font-size: 0.875rem;
+    color: var(--neon-green);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: var(--spacing-md);
+    padding-bottom: var(--spacing-md);
+    border-bottom: 1px solid rgba(0, 255, 156, 0.2);
+}
+
+.logs-container {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+}
+
+.log-entry {
+    font-family: 'Fira Code', monospace;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    padding: var(--spacing-sm);
+    background: rgba(0, 255, 156, 0.05);
+    border-left: 2px solid rgba(0, 255, 156, 0.3);
+    border-radius: 4px;
+    line-height: 1.4;
+    word-break: break-word;
+}
+
+.log-entry.error {
+    border-left-color: #ff4444;
+    color: #ff4444;
+    background: rgba(255, 68, 68, 0.05);
+}
+
+.log-entry.success {
+    border-left-color: var(--neon-green);
+    color: var(--neon-green);
+}
+
+.log-timestamp {
+    color: var(--text-tertiary);
+    margin-right: var(--spacing-sm);
+}
+
+/* Panel de modelos */
+.models-panel {
+    background: rgba(11, 15, 20, 0.45);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(0, 255, 156, 0.2);
+    border-radius: 16px;
+    padding: var(--spacing-lg);
+    display: flex;
+    flex-direction: column;
+    box-shadow: var(--shadow-glass);
+    grid-column: 2;
+    grid-row: 2;
+}
+
+.models-header {
+    font-family: 'Fira Code', monospace;
+    font-size: 0.875rem;
+    color: var(--neon-green);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: var(--spacing-md);
+    padding-bottom: var(--spacing-md);
+    border-bottom: 1px solid rgba(0, 255, 156, 0.2);
+}
+
+.models-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-lg);
+}
+
+.stat-item {
+    text-align: center;
+}
+
+.stat-number {
+    font-family: 'Fira Code', monospace;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--neon-green);
+}
+
+.stat-label {
+    font-family: 'Fira Code', monospace;
+    font-size: 0.625rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-top: var(--spacing-xs);
+}
+
+.models-list {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+}
+
+.model-item {
+    background: rgba(0, 255, 156, 0.05);
+    border: 1px solid rgba(0, 255, 156, 0.15);
+    border-radius: 8px;
+    padding: var(--spacing-md);
+    font-family: 'Fira Code', monospace;
+    font-size: 0.75rem;
+    transition: all 0.3s ease;
+}
+
+.model-item:hover {
+    border-color: rgba(0, 255, 156, 0.3);
+    background: rgba(0, 255, 156, 0.1);
+}
+
+.model-name {
+    color: var(--neon-green);
+    font-weight: 600;
+    margin-bottom: var(--spacing-xs);
+}
+
+.model-status {
+    display: inline-block;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border-radius: 4px;
+    font-size: 0.625rem;
+    text-transform: uppercase;
+    font-weight: 600;
+    margin-bottom: var(--spacing-xs);
+}
+
+.model-status.activo {
+    background: rgba(0, 255, 156, 0.2);
+    color: var(--neon-green);
+}
+
+.model-status.exitoso {
+    background: rgba(0, 255, 156, 0.3);
+    color: var(--neon-green);
+}
+
+.model-status.fallido {
+    background: rgba(255, 68, 68, 0.2);
+    color: #ff4444;
+}
+
+.model-info {
+    color: var(--text-secondary);
+    margin-top: var(--spacing-xs);
+}
+
+/* Botones */
+.button-group {
+    display: flex;
+    gap: var(--spacing-md);
+    margin-top: var(--spacing-lg);
+}
+
+.btn {
+    padding: var(--spacing-sm) var(--spacing-lg);
+    border: 2px solid var(--neon-green);
+    background: transparent;
+    color: var(--neon-green);
+    font-family: 'Fira Code', monospace;
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.btn:hover {
+    background: var(--neon-green);
+    color: var(--bg-primary);
+    box-shadow: var(--shadow-neon-green);
+}
+
+.btn:active {
+    transform: scale(0.95);
+}
+
+/* Barra de progreso */
+.progress-bar {
+    width: 100%;
+    height: 4px;
+    background: rgba(0, 255, 156, 0.1);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: var(--spacing-md);
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--neon-green), var(--neon-cyan));
+    border-radius: 2px;
+    transition: width 0.3s ease;
+}
+
+/* Responsive */
+@media (max-width: 1200px) {
+    .main-content {
+        grid-template-columns: 1fr;
+    }
+    
+    .models-panel,
+    .logs-panel {
+        grid-column: 1 !important;
+    }
+}
+
+@media (max-width: 768px) {
+    .header {
+        padding: var(--spacing-md) var(--spacing-lg);
+    }
+    
+    .header h1 {
+        font-size: 1.25rem;
+    }
+    
+    .main-content {
+        padding: var(--spacing-lg);
+        gap: var(--spacing-lg);
+    }
+    
+    .kpi-panel {
+        grid-template-columns: 1fr;
+    }
+    
+    .kpi-value {
+        font-size: 1.5rem;
+    }
+    
+    .models-stats {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Animaciones */
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.kpi-card {
+    animation: slideIn 0.5s ease;
+}
+
+/* Efecto glassmorphism mejorado */
+.glass-effect {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05));
+    backdrop-filter: blur(10px);
+}
