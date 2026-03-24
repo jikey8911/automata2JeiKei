@@ -13,7 +13,10 @@ from pydantic import BaseModel
 from adaptadores.postgres_adapter import PostgresAdapter
 from adaptadores.duckduckgo_adapter import DuckDuckGoAdapter
 from adaptadores.ollama_adapter import OllamaAdapter
+from adaptadores.appium_adapter import AppiumAdapter
+from adaptadores.binance_adapter import BinanceAdapter
 from dominio.agente import AgenteAutonomo
+from rutas_avanzadas import router as router_avanzado
 
 # Configuración
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://automata:automata_secure_password@db:5432/automata_ai")
@@ -24,11 +27,17 @@ repositorio = PostgresAdapter(DATABASE_URL)
 buscador = DuckDuckGoAdapter()
 generador_lenguaje = OllamaAdapter(OLLAMA_BASE_URL)
 
+# Crear adaptadores adicionales
+automatizador = AppiumAdapter()
+servicio_financiero = BinanceAdapter()
+
 # Crear agente
 agente = AgenteAutonomo(
     repositorio=repositorio,
     buscador=buscador,
-    generador_lenguaje=generador_lenguaje
+    generador_lenguaje=generador_lenguaje,
+    automatizador=automatizador,
+    servicio_financiero=servicio_financiero
 )
 
 # Crear aplicación FastAPI
@@ -46,6 +55,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Incluir rutas avanzadas
+app.include_router(router_avanzado)
 
 # Gestión de WebSockets conectados
 class ConnectionManager:

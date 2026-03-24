@@ -1,0 +1,106 @@
+version: '3.9'
+
+services:
+  # Base de Datos PostgreSQL
+  db:
+    image: postgres:16-alpine
+    container_name: automata_db
+    environment:
+      POSTGRES_USER: automata
+      POSTGRES_PASSWORD: automata_secure_password
+      POSTGRES_DB: automata_ai
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U automata"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - automata_network
+
+  # Ollama - LLM Local
+  ollama:
+    image: ollama/ollama:latest
+    container_name: automata_ollama
+    ports:
+      - "11434:11434"
+    environment:
+      OLLAMA_HOST: 0.0.0.0:11434
+    volumes:
+      - ollama_data:/root/.ollama
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - automata_network
+    # Para GPU: uncomment la siguiente línea
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
+  # Emulador Android (Fase 2)
+  android:
+    image: budtmo/docker-android-x86-11.0:latest
+    container_name: automata_android
+    ports:
+      - "5037:5037"
+      - "4723:4723"
+    environment:
+      DEVICE_PROPERTIES: "ro.secure=0 ro.debuggable=1"
+    volumes:
+      - android_data:/data
+    networks:
+      - automata_network
+    # Opcional: solo si tienes GPU disponible
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
+  # Agente Python - Backend FastAPI
+  agente:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: automata_agente
+    environment:
+      DATABASE_URL: postgresql://automata:automata_secure_password@db:5432/automata_ai
+      OLLAMA_BASE_URL: http://ollama:11434
+      APPIUM_URL: http://android:4723
+      BINANCE_API_KEY: ${BINANCE_API_KEY:-}
+      BINANCE_API_SECRET: ${BINANCE_API_SECRET:-}
+      PYTHONUNBUFFERED: 1
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    networks:
+      - automata_network
+    command: python -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+volumes:
+  postgres_data:
+  ollama_data:
+  android_data:
+
+networks:
+  automata_network:
+    driver: bridge

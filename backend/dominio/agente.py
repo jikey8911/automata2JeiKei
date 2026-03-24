@@ -8,6 +8,8 @@ from enum import Enum
 from puertos.repositorio import IRepositorio, ModeloIngresos
 from puertos.buscador import IBuscadorWeb
 from puertos.lenguaje import IGeneradorDeLenguaje
+from puertos.automatizador import IAutomatizadorUI
+from puertos.financiero import IServicioFinanciero
 from dominio.base_conocimiento import BaseDeConocimiento
 
 
@@ -28,11 +30,15 @@ class AgenteAutonomo:
         self,
         repositorio: IRepositorio,
         buscador: IBuscadorWeb,
-        generador_lenguaje: IGeneradorDeLenguaje
+        generador_lenguaje: IGeneradorDeLenguaje,
+        automatizador: Optional[IAutomatizadorUI] = None,
+        servicio_financiero: Optional[IServicioFinanciero] = None
     ):
         self.repositorio = repositorio
         self.buscador = buscador
         self.generador_lenguaje = generador_lenguaje
+        self.automatizador = automatizador
+        self.servicio_financiero = servicio_financiero
         self.base_conocimiento = BaseDeConocimiento()
         
         self.estado_actual = EstadoAgente.DESCANSANDO
