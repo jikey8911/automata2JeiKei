@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AutomataAI - Gestión de Billeteras</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Courier New', monospace;
+            background: linear-gradient(135deg, #0a0e27 0%, #1a1f3a 100%);
+            color: #e0e0e0;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding: 20px;
+            background: rgba(0, 255, 153, 0.05);
+            border: 2px solid #00ff99;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 255, 153, 0.1);
+        }
+
+        h1 {
+            color: #00ff99;
+            font-size: 2.5em;
+            text-shadow: 0 0 10px #00ff99;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #00ff99;
+            opacity: 0.8;
+            font-size: 0.9em;
+        }
+
+        .billeteras-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+
+        @media (max-width: 1024px) {
+            .billeteras-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .billetera-card {
+            background: rgba(20, 30, 60, 0.8);
+            border: 2px solid #00ff99;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 0 30px rgba(0, 255, 153, 0.15);
+            transition: all 0.3s ease;
+        }
+
+        .billetera-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 0 50px rgba(0, 255, 153, 0.25);
+        }
+
+        .billetera-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #00ff99;
+        }
+
+        .billetera-icon {
+            width: 50px;
+            height: 50px;
+            background: rgba(0, 255, 153, 0.1);
+            border: 2px solid #00ff99;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 15px;
+            font-size: 1.5em;
+        }
+
+        .billetera-title {
+            color: #00ff99;
+            font-size: 1.5em;
+            text-shadow: 0 0 5px #00ff99;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 5px 12px;
+            background: rgba(0, 255, 153, 0.1);
+            border: 1px solid #00ff99;
+            border-radius: 20px;
+            font-size: 0.8em;
+            color: #00ff99;
+            margin-left: auto;
+        }
+
+        .status-badge.connected {
+            background: rgba(0, 255, 153, 0.2);
+        }
+
+        .status-badge.disconnected {
+            background: rgba(255, 100, 100, 0.1);
+            border-color: #ff6464;
+            color: #ff6464;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            color: #00ff99;
+            margin-bottom: 5px;
+            font-size: 0.9em;
+        }
+
+        input, select, textarea {
+            width: 100%;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid #00ff99;
+            border-radius: 5px;
+            color: #e0e0e0;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: #00ff99;
+            box-shadow: 0 0 10px rgba(0, 255, 153, 0.3);
+        }
+
+        button {
+            background: linear-gradient(135deg, #00ff99, #00cc77);
+            color: #000;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 5px;
+            font-weight: bold;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+            transition: all 0.3s ease;
+            width: 100%;
+            margin-top: 10px;
+        }
+
+        button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 20px rgba(0, 255, 153, 0.5);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: scale(1);
+        }
+
+        .info-panel {
+            background: rgba(0, 255, 153, 0.05);
+            border-left: 4px solid #00ff99;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 5px;
+        }
+
+        .info-label {
+            color: #00ff99;
+            font-size: 0.85em;
+            opacity: 0.8;
+            margin-bottom: 3px;
+        }
+
+        .info-value {
+            color: #e0e0e0;
+            font-size: 1.1em;
+            font-weight: bold;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #00ff99;
+        }
+
+        .tab-button {
+            background: transparent;
+            border: none;
+            color: #00ff99;
+            padding: 10px 20px;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+            transition: all 0.3s ease;
+        }
+
+        .tab-button.active {
+            border-bottom-color: #00ff99;
+            background: rgba(0, 255, 153, 0.1);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .error {
+            background: rgba(255, 100, 100, 0.1);
+            border: 1px solid #ff6464;
+            color: #ff9999;
+            padding: 12px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+        }
+
+        .success {
+            background: rgba(0, 255, 153, 0.1);
+            border: 1px solid #00ff99;
+            color: #00ff99;
+            padding: 12px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #00ff99;
+            border-radius: 50%;
+            border-top-color: transparent;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .transacciones-list {
+            max-height: 400px;
+            overflow-y: auto;
+            margin-top: 15px;
+        }
+
+        .transaccion-item {
+            background: rgba(0, 0, 0, 0.2);
+            border-left: 3px solid #00ff99;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 3px;
+        }
+
+        .transaccion-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+            font-size: 0.9em;
+        }
+
+        .transaccion-tipo {
+            color: #00ff99;
+            font-weight: bold;
+        }
+
+        .transaccion-monto {
+            color: #e0e0e0;
+        }
+
+        .transaccion-fecha {
+            color: #888;
+            font-size: 0.8em;
+        }
+
+        .divisas-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .divisa-card {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid #00ff99;
+            padding: 12px;
+            border-radius: 5px;
+            text-align: center;
+        }
+
+        .divisa-nombre {
+            color: #00ff99;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .divisa-balance {
+            color: #e0e0e0;
+            font-size: 1.2em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>💰 Gestión de Billeteras</h1>
+            <p class="subtitle">Binance & Comodolar - Divisas Múltiples</p>
+        </header>
+
+        <div class="billeteras-grid">
+            <!-- BINANCE -->
+            <div class="billetera-card">
+                <div class="billetera-header">
+                    <div class="billetera-icon">₿</div>
+                    <div class="billetera-title">Binance</div>
+                    <div class="status-badge" id="binance-status">Desconectado</div>
+                </div>
+
+                <div class="tabs">
+                    <button class="tab-button active" onclick="switchTab('binance', 'config')">Configuración</button>
+                    <button class="tab-button" onclick="switchTab('binance', 'balance')">Balance</button>
+                    <button class="tab-button" onclick="switchTab('binance', 'transferencia')">Transferir</button>
+                    <button class="tab-button" onclick="switchTab('binance', 'historial')">Historial</button>
+                </div>
+
+                <!-- Config Tab -->
+                <div id="binance-config" class="tab-content active">
+                    <div id="binance-config-message"></div>
+                    <div class="form-group">
+                        <label>API Key</label>
+                        <input type="password" id="binance-api-key" placeholder="Tu API Key de Binance">
+                    </div>
+                    <div class="form-group">
+                        <label>API Secret</label>
+                        <input type="password" id="binance-api-secret" placeholder="Tu API Secret de Binance">
+                    </div>
+                    <div class="form-group">
+                        <label>Dirección USDT</label>
+                        <input type="text" id="binance-address" placeholder="Ej: TN3W4H6rK833ixS4mMeVGcP1Mfb5eyJD92">
+                    </div>
+                    <div class="form-group">
+                        <label>Red</label>
+                        <select id="binance-network">
+                            <option value="TRX">TRON (TRX)</option>
+                            <option value="ETH">Ethereum (ETH)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="binance-testnet"> Usar Testnet (Desarrollo)
+                        </label>
+                    </div>
+                    <button onclick="configurarBinance()">Guardar Configuración</button>
+                </div>
+
+                <!-- Balance Tab -->
+                <div id="binance-balance" class="tab-content">
+                    <button onclick="cargarBalanceBinance()">Cargar Balance</button>
+                    <div id="binance-balance-content" style="margin-top: 15px;"></div>
+                </div>
+
+                <!-- Transferencia Tab -->
+                <div id="binance-transferencia" class="tab-content">
+                    <div class="form-group">
+                        <label>Monto (USDT)</label>
+                        <input type="number" id="binance-transfer-amount" placeholder="0.00" min="0" step="0.01">
+                    </div>
+                    <div class="form-group">
+                        <label>Dirección Destino</label>
+                        <input type="text" id="binance-transfer-address" placeholder="Dirección destino">
+                    </div>
+                    <button onclick="enviarUSDT()">Enviar USDT</button>
+                    <div id="binance-transfer-result" style="margin-top: 15px;"></div>
+                </div>
+
+                <!-- Historial Tab -->
+                <div id="binance-historial" class="tab-content">
+                    <button onclick="cargarHistorialBinance()">Cargar Historial</button>
+                    <div id="binance-historial-content" class="transacciones-list"></div>
+                </div>
+            </div>
+
+            <!-- COMODOLAR -->
+            <div class="billetera-card">
+                <div class="billetera-header">
+                    <div class="billetera-icon">💳</div>
+                    <div class="billetera-title">Comodolar</div>
+                    <div class="status-badge" id="comodolar-status">Desconectado</div>
+                </div>
+
+                <div class="tabs">
+                    <button class="tab-button active" onclick="switchTab('comodolar', 'config')">Configuración</button>
+                    <button class="tab-button" onclick="switchTab('comodolar', 'balance')">Balance</button>
+                    <button class="tab-button" onclick="switchTab('comodolar', 'convertir')">Convertir</button>
+                    <button class="tab-button" onclick="switchTab('comodolar', 'historial')">Historial</button>
+                </div>
+
+                <!-- Config Tab -->
+                <div id="comodolar-config" class="tab-content active">
+                    <div id="comodolar-config-message"></div>
+                    <div class="form-group">
+                        <label>API Key</label>
+                        <input type="password" id="comodolar-api-key" placeholder="Tu API Key de Comodolar">
+                    </div>
+                    <div class="form-group">
+                        <label>API Secret</label>
+                        <input type="password" id="comodolar-api-secret" placeholder="Tu API Secret de Comodolar">
+                    </div>
+                    <div class="form-group">
+                        <label>Divisa Principal</label>
+                        <select id="comodolar-divisa">
+                            <option value="USD">USD (Dólar)</option>
+                            <option value="COP">COP (Peso Colombiano)</option>
+                            <option value="EUR">EUR (Euro)</option>
+                            <option value="MXN">MXN (Peso Mexicano)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="comodolar-sandbox"> Usar Sandbox (Desarrollo)
+                        </label>
+                    </div>
+                    <button onclick="configurarComodolar()">Guardar Configuración</button>
+                </div>
+
+                <!-- Balance Tab -->
+                <div id="comodolar-balance" class="tab-content">
+                    <button onclick="cargarBalanceComodolar()">Cargar Balance</button>
+                    <div id="comodolar-balance-content" style="margin-top: 15px;"></div>
+                </div>
+
+                <!-- Convertir Tab -->
+                <div id="comodolar-convertir" class="tab-content">
+                    <div class="form-group">
+                        <label>Monto</label>
+                        <input type="number" id="comodolar-convert-amount" placeholder="0.00" min="0" step="0.01">
+                    </div>
+                    <div class="form-group">
+                        <label>De</label>
+                        <select id="comodolar-convert-from">
+                            <option value="USD">USD</option>
+                            <option value="COP">COP</option>
+                            <option value="EUR">EUR</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>A</label>
+                        <select id="comodolar-convert-to">
+                            <option value="COP">COP</option>
+                            <option value="USD">USD</option>
+                            <option value="EUR">EUR</option>
+                        </select>
+                    </div>
+                    <button onclick="convertirDivisas()">Convertir</button>
+                    <div id="comodolar-convert-result" style="margin-top: 15px;"></div>
+                </div>
+
+                <!-- Historial Tab -->
+                <div id="comodolar-historial" class="tab-content">
+                    <button onclick="cargarHistorialComodolar()">Cargar Historial</button>
+                    <div id="comodolar-historial-content" class="transacciones-list"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '/api/billeteras';
+
+        function switchTab(billetera, tab) {
+            // Ocultar todos los tabs
+            document.querySelectorAll(`#${billetera}-config, #${billetera}-balance, #${billetera}-transferencia, #${billetera}-convertir, #${billetera}-historial`).forEach(el => {
+                el.classList.remove('active');
+            });
+
+            // Mostrar tab seleccionado
+            const tabElement = document.getElementById(`${billetera}-${tab}`);
+            if (tabElement) {
+                tabElement.classList.add('active');
+            }
+
+            // Actualizar botones
+            document.querySelectorAll(`#${billetera}-config`).parentElement?.querySelectorAll('.tab-button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+        }
+
+        async function configurarBinance() {
+            const apiKey = document.getElementById('binance-api-key').value;
+            const apiSecret = document.getElementById('binance-api-secret').value;
+            const address = document.getElementById('binance-address').value;
+            const network = document.getElementById('binance-network').value;
+            const testnet = document.getElementById('binance-testnet').checked;
+
+            if (!apiKey || !apiSecret || !address) {
+                mostrarMensaje('binance-config-message', 'Por favor completa todos los campos', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/binance/configurar`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ api_key: apiKey, api_secret: apiSecret, direccion_usdt: address, red: network, testnet })
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    mostrarMensaje('binance-config-message', 'Binance configurado correctamente', 'success');
+                    document.getElementById('binance-status').textContent = 'Conectado';
+                    document.getElementById('binance-status').classList.add('connected');
+                } else {
+                    mostrarMensaje('binance-config-message', data.detail || 'Error configurando Binance', 'error');
+                }
+            } catch (error) {
+                mostrarMensaje('binance-config-message', error.message, 'error');
+            }
+        }
+
+        async function cargarBalanceBinance() {
+            try {
+                const response = await fetch(`${API_BASE}/binance/balance-total`);
+                const data = await response.json();
+
+                if (response.ok) {
+                    let html = '<div class="divisas-grid">';
+                    for (const [divisa, balance] of Object.entries(data.balances)) {
+                        html += `
+                            <div class="divisa-card">
+                                <div class="divisa-nombre">${divisa}</div>
+                                <div class="divisa-balance">${balance.total.toFixed(4)}</div>
+                            </div>
+                        `;
+                    }
+                    html += '</div>';
+                    document.getElementById('binance-balance-content').innerHTML = html;
+                } else {
+                    mostrarMensaje('binance-balance-content', data.detail || 'Error cargando balance', 'error');
+                }
+            } catch (error) {
+                mostrarMensaje('binance-balance-content', error.message, 'error');
+            }
+        }
+
+        async function enviarUSDT() {
+            const monto = parseFloat(document.getElementById('binance-transfer-amount').value);
+            const direccion = document.getElementById('binance-transfer-address').value;
+
+            if (!monto || !direccion) {
+                mostrarMensaje('binance-transfer-result', 'Por favor completa todos los campos', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/binance/enviar-usdt`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ monto, direccion, red: 'TRX' })
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    mostrarMensaje('binance-transfer-result', `Transferencia exitosa: ${data.tx_id}`, 'success');
+                    document.getElementById('binance-transfer-amount').value = '';
+                    document.getElementById('binance-transfer-address').value = '';
+                } else {
+                    mostrarMensaje('binance-transfer-result', data.detail || 'Error enviando USDT', 'error');
+                }
+            } catch (error) {
+                mostrarMensaje('binance-transfer-result', error.message, 'error');
+            }
+        }
+
+        async function cargarHistorialBinance() {
+            try {
+                const response = await fetch(`${API_BASE}/binance/historial`);
+                const data = await response.json();
+
+                if (response.ok) {
+                    let html = '';
+                    data.transacciones.forEach(tx => {
+                        html += `
+                            <div class="transaccion-item">
+                                <div class="transaccion-header">
+                                    <span class="transaccion-tipo">${tx.tipo.toUpperCase()}</span>
+                                    <span class="transaccion-monto">${tx.monto} ${tx.moneda}</span>
+                                </div>
+                                <div class="transaccion-fecha">${new Date(tx.fecha).toLocaleString()}</div>
+                            </div>
+                        `;
+                    });
+                    document.getElementById('binance-historial-content').innerHTML = html;
+                } else {
+                    document.getElementById('binance-historial-content').innerHTML = '<div class="error">Error cargando historial</div>';
+                }
+            } catch (error) {
+                document.getElementById('binance-historial-content').innerHTML = `<div class="error">${error.message}</div>`;
+            }
+        }
+
+        async function configurarComodolar() {
+            const apiKey = document.getElementById('comodolar-api-key').value;
+            const apiSecret = document.getElementById('comodolar-api-secret').value;
+            const divisa = document.getElementById('comodolar-divisa').value;
+            const sandbox = document.getElementById('comodolar-sandbox').checked;
+
+            if (!apiKey || !apiSecret) {
+                mostrarMensaje('comodolar-config-message', 'Por favor completa todos los campos', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/comodolar/configurar`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ api_key: apiKey, api_secret: apiSecret, divisa_principal: divisa, sandbox })
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    mostrarMensaje('comodolar-config-message', 'Comodolar configurado correctamente', 'success');
+                    document.getElementById('comodolar-status').textContent = 'Conectado';
+                    document.getElementById('comodolar-status').classList.add('connected');
+                } else {
+                    mostrarMensaje('comodolar-config-message', data.detail || 'Error configurando Comodolar', 'error');
+                }
+            } catch (error) {
+                mostrarMensaje('comodolar-config-message', error.message, 'error');
+            }
+        }
+
+        async function cargarBalanceComodolar() {
+            try {
+                const response = await fetch(`${API_BASE}/comodolar/balance-total`);
+                const data = await response.json();
+
+                if (response.ok) {
+                    let html = '<div class="divisas-grid">';
+                    for (const [divisa, balance] of Object.entries(data.balances)) {
+                        html += `
+                            <div class="divisa-card">
+                                <div class="divisa-nombre">${divisa}</div>
+                                <div class="divisa-balance">${balance.toFixed(2)}</div>
+                            </div>
+                        `;
+                    }
+                    html += '</div>';
+                    document.getElementById('comodolar-balance-content').innerHTML = html;
+                } else {
+                    mostrarMensaje('comodolar-balance-content', data.detail || 'Error cargando balance', 'error');
+                }
+            } catch (error) {
+                mostrarMensaje('comodolar-balance-content', error.message, 'error');
+            }
+        }
+
+        async function convertirDivisas() {
+            const monto = parseFloat(document.getElementById('comodolar-convert-amount').value);
+            const desde = document.getElementById('comodolar-convert-from').value;
+            const hacia = document.getElementById('comodolar-convert-to').value;
+
+            if (!monto) {
+                mostrarMensaje('comodolar-convert-result', 'Por favor ingresa un monto', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/comodolar/convertir`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ monto, divisa_origen: desde, divisa_destino: hacia })
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    const html = `
+                        <div class="success">
+                            <strong>${monto} ${desde}</strong> = <strong>${data.monto_convertido.toFixed(2)} ${hacia}</strong><br>
+                            Tasa: ${data.tasa.toFixed(4)} | Comisión: ${data.comision.toFixed(2)}
+                        </div>
+                    `;
+                    document.getElementById('comodolar-convert-result').innerHTML = html;
+                } else {
+                    mostrarMensaje('comodolar-convert-result', data.detail || 'Error en conversión', 'error');
+                }
+            } catch (error) {
+                mostrarMensaje('comodolar-convert-result', error.message, 'error');
+            }
+        }
+
+        async function cargarHistorialComodolar() {
+            try {
+                const response = await fetch(`${API_BASE}/comodolar/historial`);
+                const data = await response.json();
+
+                if (response.ok) {
+                    let html = '';
+                    data.transacciones.forEach(tx => {
+                        html += `
+                            <div class="transaccion-item">
+                                <div class="transaccion-header">
+                                    <span class="transaccion-tipo">${tx.tipo.toUpperCase()}</span>
+                                    <span class="transaccion-monto">${tx.monto} ${tx.divisa}</span>
+                                </div>
+                                <div class="transaccion-fecha">${new Date(tx.fecha).toLocaleString()}</div>
+                            </div>
+                        `;
+                    });
+                    document.getElementById('comodolar-historial-content').innerHTML = html;
+                } else {
+                    document.getElementById('comodolar-historial-content').innerHTML = '<div class="error">Error cargando historial</div>';
+                }
+            } catch (error) {
+                document.getElementById('comodolar-historial-content').innerHTML = `<div class="error">${error.message}</div>`;
+            }
+        }
+
+        function mostrarMensaje(elementId, mensaje, tipo) {
+            const element = document.getElementById(elementId);
+            if (element) {
+                element.innerHTML = `<div class="${tipo}">${mensaje}</div>`;
+            }
+        }
+
+        // Cargar estado al iniciar
+        window.addEventListener('load', async () => {
+            try {
+                const response = await fetch(`${API_BASE}/status`);
+                const data = await response.json();
+
+                if (data.binance_configurado) {
+                    document.getElementById('binance-status').textContent = 'Conectado';
+                    document.getElementById('binance-status').classList.add('connected');
+                }
+
+                if (data.comodolar_configurado) {
+                    document.getElementById('comodolar-status').textContent = 'Conectado';
+                    document.getElementById('comodolar-status').classList.add('connected');
+                }
+            } catch (error) {
+                console.error('Error cargando estado:', error);
+            }
+        });
+    </script>
+</body>
+</html>
