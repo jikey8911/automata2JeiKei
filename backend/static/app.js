@@ -2,6 +2,8 @@
 // AutomataAI Dashboard - JavaScript
 // ============================================
 
+let dashboard;
+
 class AutomataAIDashboard {
     constructor() {
         this.ws = null;
@@ -25,6 +27,7 @@ class AutomataAIDashboard {
         this.renderDashboard();
         this.conectarWebSocket();
         this.cargarEstadoInicial();
+        this.cargarModelos();
         this.configurarEventos();
     }
     
@@ -80,6 +83,7 @@ class AutomataAIDashboard {
                         <div class="button-group">
                             <button class="btn" id="btn-iniciar">Iniciar Agente</button>
                             <button class="btn" id="btn-pausar">Pausar</button>
+                            <button class="btn btn-config" id="btn-config">⚙️ Configurar</button>
                         </div>
                     </div>
                     
@@ -101,6 +105,39 @@ class AutomataAIDashboard {
                             </div>
                         </div>
                         <div class="models-list" id="models-list"></div>
+                    </div>
+                </div>
+                
+                <!-- Modal de Configuración -->
+                <div class="config-modal" id="config-modal">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h2>Configuración del Sistema</h2>
+                            <button class="btn-close" onclick="dashboard.cerrarConfiguracion()">✕</button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="config-section">
+                                <h3>🔑 Credenciales de Binance</h3>
+                                <p class="config-desc">Ingresa tus credenciales de Binance para habilitar transferencias automáticas de ingresos</p>
+                                <div class="form-group">
+                                    <label>API Key</label>
+                                    <input type="password" id="binance-api-key" placeholder="Tu API Key de Binance" />
+                                </div>
+                                <div class="form-group">
+                                    <label>API Secret</label>
+                                    <input type="password" id="binance-api-secret" placeholder="Tu API Secret de Binance" />
+                                </div>
+                                <div class="form-group">
+                                    <label>Dirección de Destino (USDT)</label>
+                                    <input type="text" id="binance-address" placeholder="Dirección TRON o Ethereum para recibir USDT" />
+                                </div>
+                                <div class="form-group checkbox">
+                                    <input type="checkbox" id="binance-testnet" />
+                                    <label for="binance-testnet">Usar Testnet (desarrollo)</label>
+                                </div>
+                                <button class="btn btn-primary" id="btn-guardar-binance">💾 Guardar Configuración</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -220,6 +257,48 @@ class AutomataAIDashboard {
         }
     }
     
+    async cargarModelos() {
+        try {
+            const response = await fetch('/api/modelos');
+            const data = await response.json();
+            this.modelos = data.modelos || [];
+            this.renderizarModelos();
+        } catch (e) {
+            console.error('Error cargando modelos:', e);
+        }
+    }
+    
+    renderizarModelos() {
+        const container = document.getElementById('models-list');
+        
+        if (this.modelos.length === 0) {
+            container.innerHTML = '<div class="empty-state">Sin modelos aún</div>';
+            return;
+        }
+        
+        container.innerHTML = this.modelos.map(modelo => `
+            <div class="model-card model-${modelo.estado}">
+                <div class="model-header">
+                    <h4>${modelo.estrategia_nombre}</h4>
+                    <span class="model-badge model-${modelo.estado}">${modelo.estado.toUpperCase()}</span>
+                </div>
+                <div class="model-body">
+                    <p class="model-desc">${modelo.descripcion || 'Sin descripción'}</p>
+                    <div class="model-stats">
+                        <div class="model-stat">
+                            <span class="stat-label">Ingresos:</span>
+                            <span class="stat-value">$${modelo.ingresos_generados.toFixed(2)}</span>
+                        </div>
+                        <div class="model-stat">
+                            <span class="stat-label">Creado:</span>
+                            <span class="stat-value">${new Date(modelo.fecha_creacion).toLocaleDateString('es-ES')}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    }
+    
     configurarEventos() {
         document.getElementById('btn-iniciar').addEventListener('click', () => {
             this.iniciarAgente();
@@ -228,6 +307,68 @@ class AutomataAIDashboard {
         document.getElementById('btn-pausar').addEventListener('click', () => {
             this.pausarAgente();
         });
+        
+        document.getElementById('btn-config').addEventListener('click', () => {
+            this.mostrarConfiguracion();
+        });
+        
+        document.getElementById('btn-guardar-binance').addEventListener('click', () => {
+            this.guardarConfigBinance();
+        });
+        
+        // Cargar modelos cada 15 segundos
+        setInterval(() => this.cargarModelos(), 15000);
+    }
+    
+    mostrarConfiguracion() {
+        const modal = document.getElementById('config-modal');
+        modal.style.display = 'flex';
+    }
+    
+    cerrarConfiguracion() {
+        const modal = document.getElementById('config-modal');
+        modal.style.display = 'none';
+    }
+    
+    async guardarConfigBinance() {
+        const apiKey = document.getElementById('binance-api-key').value;
+        const apiSecret = document.getElementById('binance-api-secret').value;
+        const address = document.getElementById('binance-address').value;
+        const testnet = document.getElementById('binance-testnet').checked;
+        
+        if (!apiKey || !apiSecret || !address) {
+            this.agregarLog('❌ Todos los campos son requeridos', 'error');
+            return;
+        }
+        
+        try {
+            const response = await fetch('/api/configurar/binance', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    api_key: apiKey,
+                    api_secret: apiSecret,
+                    address: address,
+                    testnet: testnet
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok) {
+                this.agregarLog('✅ Configuración de Binance guardada', 'success');
+                this.cerrarConfiguracion();
+                // Limpiar campos
+                document.getElementById('binance-api-key').value = '';
+                document.getElementById('binance-api-secret').value = '';
+                document.getElementById('binance-address').value = '';
+            } else {
+                this.agregarLog(`❌ Error: ${data.detail || 'Error desconocido'}`, 'error');
+            }
+        } catch (e) {
+            console.error('Error guardando configuración:', e);
+            this.agregarLog('❌ Error al guardar configuración', 'error');
+        }
     }
     
     async iniciarAgente() {
@@ -265,5 +406,5 @@ class AutomataAIDashboard {
 
 // Inicializar cuando el DOM esté listo
 document.addEventListener('DOMContentLoaded', () => {
-    new AutomataAIDashboard();
+    dashboard = new AutomataAIDashboard();
 });

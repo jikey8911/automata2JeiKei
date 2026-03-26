@@ -17,6 +17,7 @@ from adaptadores.appium_adapter import AppiumAdapter
 from adaptadores.binance_adapter import BinanceAdapter
 from dominio.agente import AgenteAutonomo
 from rutas_avanzadas import router as router_avanzado
+from rutas_configuracion import router as router_configuracion
 
 # Configuración
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://automata:automata_secure_password@db:5432/automata_ai")
@@ -56,8 +57,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Incluir rutas avanzadas
+# Incluir rutas
 app.include_router(router_avanzado)
+app.include_router(router_configuracion)
 
 # Gestión de WebSockets conectados
 class ConnectionManager:
