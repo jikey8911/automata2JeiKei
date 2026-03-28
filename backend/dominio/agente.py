@@ -11,6 +11,7 @@ from puertos.lenguaje import IGeneradorDeLenguaje
 from puertos.automatizador import IAutomatizadorUI
 from puertos.financiero import IServicioFinanciero
 from dominio.base_conocimiento import BaseDeConocimiento
+from dominio.estrategias import RegistroEstrategias
 
 
 class EstadoAgente(str, Enum):
@@ -32,13 +33,16 @@ class AgenteAutonomo:
         buscador: IBuscadorWeb,
         generador_lenguaje: IGeneradorDeLenguaje,
         automatizador: Optional[IAutomatizadorUI] = None,
-        servicio_financiero: Optional[IServicioFinanciero] = None
+        servicio_financiero: Optional[IServicioFinanciero] = None,
+        respaldo_financiero: Optional[IServicioFinanciero] = None
     ):
         self.repositorio = repositorio
         self.buscador = buscador
         self.generador_lenguaje = generador_lenguaje
         self.automatizador = automatizador
         self.servicio_financiero = servicio_financiero
+        self.respaldo_financiero = respaldo_financiero
+        self.registro_estrategias = RegistroEstrategias()
         self.base_conocimiento = BaseDeConocimiento()
         
         self.estado_actual = EstadoAgente.DESCANSANDO
@@ -241,29 +245,46 @@ Responde en formato JSON."""
             })
     
     async def _fase_ejecucion(self) -> None:
-        """Fase 3: Ejecutar los modelos (Simulada en MVP)"""
+        """Fase 3: Ejecutar los modelos de ingresos de forma real"""
         self.estado_actual = EstadoAgente.EJECUTANDO
         
         await self.emitir_log({
             "timestamp": datetime.now().isoformat(),
             "estado_agente": self.estado_actual,
-            "mensaje": "Iniciando ejecución de modelos..."
+            "mensaje": "Iniciando ejecución real de modelos..."
         })
         
         for modelo in self.modelos_activos:
             if modelo.estado == "activo":
-                # En MVP, simulamos la ejecución
-                plan = modelo.plan_ejecucion
-                pasos = plan.get("pasos", [])
+                # Buscar estrategia correspondiente
+                # Mapear nombre de estrategia a ID de registro
+                strategy_id = "arbitraje" if "arbitraje" in modelo.estrategia_nombre.lower() else \
+                              "contenido_ia" if "contenido" in modelo.estrategia_nombre.lower() else \
+                              "micro_tareas"
                 
-                for paso in pasos:
+                estrategia = self.registro_estrategias.obtener_estrategia(strategy_id)
+                if estrategia:
                     await self.emitir_log({
                         "timestamp": datetime.now().isoformat(),
                         "estado_agente": self.estado_actual,
-                        "mensaje": f"[{modelo.estrategia_nombre}] Ejecutando: {paso}",
+                        "mensaje": f"[{modelo.estrategia_nombre}] Ejecutando estrategia real...",
                         "modelo_id": str(modelo.id)
                     })
-                    await asyncio.sleep(0.5)  # Simular trabajo
+                    
+                    resultado = await estrategia.ejecutar(
+                        adaptador_financiero=self.servicio_financiero,
+                        parametros=modelo.plan_ejecucion
+                    )
+                    
+                    # Guardar resultado en el modelo para análisis
+                    modelo.plan_ejecucion["resultado_ejecucion"] = resultado
+                else:
+                    await self.emitir_log({
+                        "timestamp": datetime.now().isoformat(),
+                        "estado_agente": self.estado_actual,
+                        "mensaje": f"[{modelo.estrategia_nombre}] No se encontró estrategia real, usando simulación.",
+                        "modelo_id": str(modelo.id)
+                    })
     
     async def _fase_analisis(self) -> None:
         """Fase 4: Analizar resultados de los modelos"""
@@ -276,19 +297,17 @@ Responde en formato JSON."""
         })
         
         for modelo in self.modelos_activos:
-            # Simular análisis: 60% de probabilidad de éxito
-            import random
-            exito = random.random() > 0.4
+            resultado = modelo.plan_ejecucion.get("resultado_ejecucion", {})
+            exito = resultado.get("exitoso", False)
             
             if exito:
-                # Simular ingresos generados
-                ingresos_simulados = random.uniform(10, 100)
-                modelo.ingresos_generados = ingresos_simulados
+                ingresos = resultado.get("ganancia_realizada", resultado.get("ingresos_generados", 0.0))
+                modelo.ingresos_generados = ingresos
                 modelo.estado = "exitoso"
-                self.ingresos_totales += ingresos_simulados
+                self.ingresos_totales += ingresos
                 
                 await self.repositorio.actualizar_estado_modelo(modelo.id, "exitoso")
-                await self.repositorio.actualizar_ingresos_modelo(modelo.id, ingresos_simulados)
+                await self.repositorio.actualizar_ingresos_modelo(modelo.id, ingresos)
                 
                 await self.emitir_log({
                     "timestamp": datetime.now().isoformat(),

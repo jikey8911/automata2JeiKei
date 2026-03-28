@@ -257,3 +257,107 @@ class PostgresAdapter(IRepositorio):
             plan_ejecucion=json.loads(row[7]) if isinstance(row[7], str) else row[7],
             modelo_padre_id=UUID(row[8]) if row[8] else None
         )
+
+    async def guardar_configuracion_binance(self, config: Dict[str, Any]) -> None:
+        """Guardar configuración de Binance con encripción"""
+        from utils.security import encrypt_data
+        session = self._get_session()
+        try:
+            query = text("""
+                INSERT INTO binance_integrations (api_key_enc, api_secret_enc, direccion_usdt, testnet)
+                VALUES (:key, :secret, :addr, :testnet)
+                ON CONFLICT (id) DO UPDATE SET
+                    api_key_enc = EXCLUDED.api_key_enc,
+                    api_secret_enc = EXCLUDED.api_secret_enc,
+                    direccion_usdt = EXCLUDED.direccion_usdt,
+                    testnet = EXCLUDED.testnet,
+                    fecha_actualizacion = CURRENT_TIMESTAMP
+            """)
+            session.execute(query, {
+                "key": encrypt_data(config['api_key']),
+                "secret": encrypt_data(config['api_secret']),
+                "addr": config.get('direccion_usdt'),
+                "testnet": config.get('testnet', False)
+            })
+            session.commit()
+        finally:
+            session.close()
+
+    async def obtener_configuracion_binance(self) -> Optional[Dict[str, Any]]:
+        """Obtener y desencriptar configuración de Binance"""
+        from utils.security import decrypt_data
+        session = self._get_session()
+        try:
+            query = text("SELECT api_key_enc, api_secret_enc, direccion_usdt, testnet FROM binance_integrations LIMIT 1")
+            result = session.execute(query).fetchone()
+            if result:
+                return {
+                    "api_key": decrypt_data(result[0]),
+                    "api_secret": decrypt_data(result[1]),
+                    "direccion_usdt": result[2],
+                    "testnet": result[3]
+                }
+            return None
+        finally:
+            session.close()
+
+    async def guardar_configuracion_comodolar(self, config: Dict[str, Any]) -> None:
+        """Guardar configuración de Comodolar/DolarApp con encripción"""
+        from utils.security import encrypt_data
+        session = self._get_session()
+        try:
+            query = text("""
+                INSERT INTO comodolar_integrations (api_key_enc, api_secret_enc, api_url)
+                VALUES (:key, :secret, :url)
+                ON CONFLICT (id) DO UPDATE SET
+                    api_key_enc = EXCLUDED.api_key_enc,
+                    api_secret_enc = EXCLUDED.api_secret_enc,
+                    api_url = EXCLUDED.api_url,
+                    fecha_actualizacion = CURRENT_TIMESTAMP
+            """)
+            session.execute(query, {
+                "key": encrypt_data(config['api_key']),
+                "secret": encrypt_data(config['api_secret']),
+                "url": config.get('api_url', 'http://dolarapp-backend:8000')
+            })
+            session.commit()
+        finally:
+            session.close()
+
+    async def obtener_configuracion_comodolar(self) -> Optional[Dict[str, Any]]:
+        """Obtener y desencriptar configuración de Comodolar/DolarApp"""
+        from utils.security import decrypt_data
+        session = self._get_session()
+        try:
+            query = text("SELECT api_key_enc, api_secret_enc, api_url FROM comodolar_integrations LIMIT 1")
+            result = session.execute(query).fetchone()
+            if result:
+                return {
+                    "api_key": decrypt_data(result[0]),
+                    "api_secret": decrypt_data(result[1]),
+                    "api_url": result[2]
+                }
+            return None
+        finally:
+            session.close()
+
+    async def obtener_usuario(self, username: str) -> Optional[Dict[str, Any]]:
+        """Obtener un usuario por su nombre de usuario"""
+        session = self._get_session()
+        try:
+            query = text("SELECT username, password_hash, full_name, is_active FROM usuarios WHERE username = :username")
+            result = session.execute(query, {"username": username}).fetchone()
+            if result:
+                return {
+                    "username": result[0],
+                    "password_hash": result[1],
+                    "full_name": result[2],
+                    "is_active": result[3]
+                }
+            return None
+        finally:
+            session.close()
+
+    async def obtener_estado_transaccion(self, hash_transaccion: str) -> Dict[str, Any]:
+        """Obtener el estado de una transacción (implementación básica)"""
+        return {"hash": hash_transaccion, "estado": "procesando", "timestamp": datetime.now().isoformat()}

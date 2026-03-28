@@ -35,6 +35,25 @@ CREATE TABLE IF NOT EXISTS logs_decision (
     nivel_confianza DECIMAL(3, 2) DEFAULT 0.50
 );
 
+-- Tabla para integraciones de Binance
+CREATE TABLE IF NOT EXISTS binance_integrations (
+    id SERIAL PRIMARY KEY,
+    api_key_enc TEXT NOT NULL,
+    api_secret_enc TEXT NOT NULL,
+    direccion_usdt VARCHAR(255),
+    testnet BOOLEAN DEFAULT FALSE,
+    fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Tabla para integraciones de Comodolar (DolarApp)
+CREATE TABLE IF NOT EXISTS comodolar_integrations (
+    id SERIAL PRIMARY KEY,
+    api_key_enc TEXT NOT NULL,
+    api_secret_enc TEXT NOT NULL,
+    api_url VARCHAR(255) DEFAULT 'http://dolarapp-backend:8000',
+    fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Tabla para almacenar el estado general del agente
 CREATE TABLE IF NOT EXISTS estado_agente (
     id SERIAL PRIMARY KEY,
@@ -49,6 +68,22 @@ CREATE TABLE IF NOT EXISTS estado_agente (
     proxima_ejecucion TIMESTAMP,
     ciclos_completados INT DEFAULT 0
 );
+
+-- Tabla para almacenar los usuarios del sistema
+CREATE TABLE IF NOT EXISTS usuarios (
+    id SERIAL PRIMARY KEY,
+    username VARCHAR(100) UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    full_name VARCHAR(255),
+    is_active BOOLEAN DEFAULT TRUE,
+    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Insertar usuario administrador por defecto (contraseña: automata2026)
+-- Hash generado para 'automata2026'
+INSERT INTO usuarios (username, password_hash, full_name)
+VALUES ('admin', '$2b$12$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeG6Lruj3vjPGGa31S2', 'Administrador AutomataAI')
+ON CONFLICT (username) DO NOTHING;
 
 -- Índices para optimizar consultas
 CREATE INDEX idx_modelos_estado ON modelos_ingresos(estado);

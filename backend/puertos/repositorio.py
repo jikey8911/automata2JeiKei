@@ -1,11 +1,10 @@
 from abc import ABC, abstractmethod
-from typing import List, Optional, Dict, Any
+from typing import List, Dict, Any, Optional
 from uuid import UUID
 from datetime import datetime
 
-
 class ModeloIngresos:
-    """Representación de un modelo de ingresos (experimento)"""
+    """Modelo de datos para estrategias de ingresos"""
     def __init__(
         self,
         id: UUID,
@@ -88,4 +87,34 @@ class IRepositorio(ABC):
     @abstractmethod
     async def actualizar_estado_agente(self, datos: Dict[str, Any]) -> None:
         """Actualizar el estado del agente"""
+        pass
+
+    @abstractmethod
+    async def guardar_configuracion_binance(self, config: Dict[str, Any]) -> None:
+        """Guardar configuración de Binance"""
+        pass
+
+    @abstractmethod
+    async def obtener_configuracion_binance(self) -> Optional[Dict[str, Any]]:
+        """Obtener configuración de Binance"""
+        pass
+
+    @abstractmethod
+    async def guardar_configuracion_comodolar(self, config: Dict[str, Any]) -> None:
+        """Guardar configuración de Comodolar"""
+        pass
+
+    @abstractmethod
+    async def obtener_configuracion_comodolar(self) -> Optional[Dict[str, Any]]:
+        """Obtener configuración de Comodolar"""
+        pass
+    
+    @abstractmethod
+    async def obtener_usuario(self, username: str) -> Optional[Dict[str, Any]]:
+        """Obtener un usuario por su nombre de usuario"""
+        pass
+
+    @abstractmethod
+    async def obtener_estado_transaccion(self, hash_transaccion: str) -> Dict[str, Any]:
+        """Obtener el estado de una transacción"""
         pass

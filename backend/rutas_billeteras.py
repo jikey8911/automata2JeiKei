@@ -124,49 +124,30 @@ def inicializar_adaptadores():
 @router.post("/binance/configurar")
 async def configurar_binance(config: ConfiguracionBinance):
     """
-    Configurar credenciales de Binance
-    
-    Args:
-        config: Configuración de Binance
-    
-    Returns:
-        Confirmación de configuración
+    Configurar credenciales de Binance con persistencia en DB
     """
     try:
-        global binance_adapter
+        from main import repositorio
         
-        # Crear adaptador
-        binance_adapter = BinanceRealAdapter(
-            api_key=config.api_key,
-            api_secret=config.api_secret,
-            testnet=config.testnet
-        )
-        
-        # Validar credenciales
-        await binance_adapter.obtener_info_cuenta()
-        
-        # Guardar configuración
-        config_actual = cargar_configuracion()
-        config_actual['binance'] = {
+        # Guardar en base de datos (se encarga de la encripción internamente)
+        await repositorio.guardar_configuracion_binance({
             'api_key': config.api_key,
             'api_secret': config.api_secret,
-            'testnet': config.testnet,
             'direccion_usdt': config.direccion_usdt,
-            'red': config.red
-        }
-        guardar_configuracion(config_actual)
+            'testnet': config.testnet
+        })
         
-        logger.info("Configuración de Binance guardada")
+        logger.info("Configuración de Binance guardada en PostgreSQL")
         
         return {
             'status': 'success',
-            'mensaje': 'Binance configurado correctamente',
+            'mensaje': 'Binance configurado y guardado de forma segura',
             'testnet': config.testnet
         }
     
     except Exception as e:
-        logger.error(f"Error configurando Binance: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error(f"Error guardando configuración de Binance: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/binance/balance")
@@ -311,48 +292,29 @@ async def obtener_tasa_binance(simbolo: str = "USDT"):
 @router.post("/comodolar/configurar")
 async def configurar_comodolar(config: ConfiguracionComodolar):
     """
-    Configurar credenciales de Comodolar
-    
-    Args:
-        config: Configuración de Comodolar
-    
-    Returns:
-        Confirmación de configuración
+    Configurar credenciales de Comodolar (DolarApp) con persistencia en DB
     """
     try:
-        global comodolar_adapter
+        from main import repositorio
         
-        # Crear adaptador
-        comodolar_adapter = ComodolarAdapter(
-            api_key=config.api_key,
-            api_secret=config.api_secret,
-            sandbox=config.sandbox
-        )
-        
-        # Validar credenciales
-        await comodolar_adapter.obtener_info_cuenta()
-        
-        # Guardar configuración
-        config_actual = cargar_configuracion()
-        config_actual['comodolar'] = {
+        # Guardar en base de datos
+        await repositorio.guardar_configuracion_comodolar({
             'api_key': config.api_key,
             'api_secret': config.api_secret,
-            'sandbox': config.sandbox,
-            'divisa_principal': config.divisa_principal
-        }
-        guardar_configuracion(config_actual)
+            'api_url': 'http://dolarapp-backend:8000' if config.sandbox else 'https://api.comodolar.com/v1'
+        })
         
-        logger.info("Configuración de Comodolar guardada")
+        logger.info("Configuración de Comodolar guardada en PostgreSQL")
         
         return {
             'status': 'success',
-            'mensaje': 'Comodolar configurado correctamente',
+            'mensaje': 'Comodolar/DolarApp configurado correctamente',
             'sandbox': config.sandbox
         }
     
     except Exception as e:
-        logger.error(f"Error configurando Comodolar: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error(f"Error guardando configuración de Comodolar: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/comodolar/balance")

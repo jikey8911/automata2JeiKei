@@ -1,15 +1,18 @@
 import logging
+import random
+import os
 from typing import Optional, Dict, Any, List
 from datetime import datetime
-import os
+
+from binance.client import Client
+from binance.exceptions import BinanceAPIException
 
 from puertos.financiero import IServicioFinanciero, Transaccion
 
 logger = logging.getLogger(__name__)
 
-
 class BinanceAdapter(IServicioFinanciero):
-    """Adaptador para Binance API - Pagos y transferencias"""
+    """Adaptador para Binance API - Pagos y transferencias reales"""
     
     def __init__(
         self,
@@ -17,248 +20,145 @@ class BinanceAdapter(IServicioFinanciero):
         api_secret: Optional[str] = None,
         testnet: bool = True
     ):
-        # Cargar credenciales desde variables de entorno
         self.api_key = api_key or os.getenv("BINANCE_API_KEY", "")
         self.api_secret = api_secret or os.getenv("BINANCE_API_SECRET", "")
         self.testnet = testnet
-        
+        self.client: Optional[Client] = None
         self.conectado = False
-        self.base_url = "https://testnet.binance.vision" if testnet else "https://api.binance.com"
-        
-        # En MVP, simulamos el cliente
-        # En producción: from binance.client import Client
-        self.client = None
         
         logger.info(f"BinanceAdapter inicializado (testnet={testnet})")
     
     async def conectar(self) -> bool:
-        """Conectar con Binance API"""
+        """Conectar con la API real de Binance"""
         try:
             if not self.api_key or not self.api_secret:
-                logger.warning("⚠️ Credenciales de Binance no configuradas")
-                logger.info("Para usar Binance, configura: BINANCE_API_KEY y BINANCE_API_SECRET")
+                logger.warning("⚠️ Credenciales de Binance no configuradas.")
                 return False
             
-            logger.info(f"Conectando a Binance ({self.base_url})")
+            # Inicializar cliente de Binance
+            self.client = Client(self.api_key, self.api_secret, testnet=self.testnet)
             
-            # En producción:
-            # from binance.client import Client
-            # self.client = Client(self.api_key, self.api_secret)
-            # self.client.ping()
-            
-            # MVP: simulación
+            # Verificar conexión con un ping
+            self.client.ping()
             self.conectado = True
-            logger.info("✅ Conectado a Binance")
+            
+            logger.info(f"✅ Conectado a Binance {'Testnet' if self.testnet else 'Mainnet'}")
             return True
-        
         except Exception as e:
             logger.error(f"❌ Error conectando a Binance: {e}")
-            return False
-    
-    async def desconectar(self) -> bool:
-        """Desconectar de Binance"""
-        try:
             self.conectado = False
-            logger.info("✅ Desconectado de Binance")
-            return True
-        except Exception as e:
-            logger.error(f"❌ Error desconectando: {e}")
             return False
-    
+            
     async def consultar_balance(self, simbolo: str = "USDT") -> float:
-        """Consultar balance de una moneda"""
-        try:
-            if not self.conectado:
-                logger.warning("No conectado a Binance")
-                return 0.0
+        """Consultar balance real en la cuenta"""
+        if not self.conectado or not self.client:
+            await self.conectar()
             
-            logger.info(f"Consultando balance de {simbolo}")
-            
-            # En producción:
-            # account = self.client.get_account()
-            # for balance in account['balances']:
-            #     if balance['asset'] == simbolo:
-            #         return float(balance['free'])
-            
-            # MVP: retornar balance simulado
-            return 1234.56  # Simulado
-        
-        except Exception as e:
-            logger.error(f"❌ Error consultando balance: {e}")
+        if not self.conectado:
             return 0.0
-    
-    async def enviar_usdt(self, direccion_destino: str, monto: float) -> Dict[str, Any]:
-        """Enviar USDT a una dirección"""
+            
         try:
-            if not self.conectado:
+            account = self.client.get_account()
+            for balance in account['balances']:
+                if balance['asset'] == simbolo:
+                    return float(balance['free'])
+            return 0.0
+        except BinanceAPIException as e:
+            logger.error(f"Error consultando balance: {e}")
+            return 0.0
+
+    async def enviar_usdt(self, direccion_destino: str, monto: float) -> Dict[str, Any]:
+        """Realizar una transferencia real de USDT"""
+        if not self.conectado or not self.client:
+            if not await self.conectar():
                 return {"exitoso": False, "error": "No conectado"}
-            
-            # Validar dirección
-            if not await self.validar_direccion(direccion_destino):
-                return {"exitoso": False, "error": "Dirección inválida"}
-            
-            # Validar monto
-            if monto <= 0:
-                return {"exitoso": False, "error": "Monto debe ser > 0"}
-            
-            # Consultar balance
-            balance = await self.consultar_balance("USDT")
-            if balance < monto:
-                return {
-                    "exitoso": False,
-                    "error": f"Balance insuficiente. Disponible: {balance} USDT"
-                }
-            
-            logger.info(f"Enviando {monto} USDT a {direccion_destino}")
-            
-            # En producción:
-            # result = self.client.withdraw(
-            #     coin='USDT',
-            #     withdrawOrderId=None,
-            #     network='TRX',  # Red TRON para USDT
-            #     address=direccion_destino,
-            #     amount=monto,
-            #     transactionFeeFlag=True,
-            #     name=None
-            # )
-            
-            # MVP: simulación
-            hash_transaccion = f"0x{'a' * 64}"
-            
-            logger.info(f"✅ Transacción iniciada: {hash_transaccion}")
+
+        try:
+            # En Testnet, los retiros suelen estar deshabilitados o simulados.
+            # En producción, esto envía fondos reales.
+            result = self.client.withdraw(
+                coin='USDT',
+                network='TRX',  # Red TRON sugerida por bajas comisiones
+                address=direccion_destino,
+                amount=monto
+            )
             
             return {
                 "exitoso": True,
-                "hash_transaccion": hash_transaccion,
+                "id_transferencia": result.get('id', 'N/A'),
                 "monto": monto,
-                "simbolo": "USDT",
-                "direccion_destino": direccion_destino,
-                "estado": "pendiente",
-                "timestamp": datetime.now().isoformat(),
-                "comisión": await self.obtener_comisión_estimada(monto)
-            }
-        
-        except Exception as e:
-            logger.error(f"❌ Error enviando USDT: {e}")
-            return {"exitoso": False, "error": str(e)}
-    
-    async def obtener_historial_transacciones(
-        self,
-        limite: int = 50,
-        offset: int = 0
-    ) -> List[Transaccion]:
-        """Obtener historial de transacciones"""
-        try:
-            if not self.conectado:
-                return []
-            
-            logger.info(f"Obteniendo historial (límite: {limite}, offset: {offset})")
-            
-            # En producción:
-            # deposits = self.client.get_deposit_history()
-            # withdraws = self.client.get_withdraw_history()
-            
-            # MVP: retornar lista vacía o simulada
-            transacciones = [
-                Transaccion(
-                    id=f"tx_{i}",
-                    monto=100.0 + i * 10,
-                    simbolo="USDT",
-                    tipo="envio",
-                    fecha=datetime.now(),
-                    estado="completada",
-                    direccion_destino="0x..." + str(i),
-                    comisión=2.0
-                )
-                for i in range(min(5, limite))
-            ]
-            
-            return transacciones
-        
-        except Exception as e:
-            logger.error(f"❌ Error obteniendo historial: {e}")
-            return []
-    
-    async def obtener_tasa_cambio(self, simbolo: str = "USDT") -> Dict[str, float]:
-        """Obtener tasa de cambio actual"""
-        try:
-            if not self.conectado:
-                return {}
-            
-            logger.info(f"Obteniendo tasa de cambio para {simbolo}")
-            
-            # En producción:
-            # ticker = self.client.get_symbol_ticker(symbol='USDTUSDT')
-            # return {'USDT': float(ticker['price'])}
-            
-            # MVP: retornar tasas simuladas
-            return {
-                "USDT": 1.0,
-                "USD": 1.0,
-                "COP": 3800.0,  # Pesos colombianos
-                "ARS": 850.0    # Pesos argentinos
-            }
-        
-        except Exception as e:
-            logger.error(f"❌ Error obteniendo tasa: {e}")
-            return {}
-    
-    async def validar_direccion(self, direccion: str) -> bool:
-        """Validar que una dirección sea válida"""
-        try:
-            # Validación básica
-            if not direccion or len(direccion) < 20:
-                return False
-            
-            # Para USDT en TRON, dirección comienza con T
-            if direccion.startswith("T") and len(direccion) == 34:
-                return True
-            
-            # Para Ethereum, dirección comienza con 0x
-            if direccion.startswith("0x") and len(direccion) == 42:
-                return True
-            
-            logger.warning(f"Dirección inválida: {direccion}")
-            return False
-        
-        except Exception as e:
-            logger.error(f"❌ Error validando dirección: {e}")
-            return False
-    
-    async def obtener_comisión_estimada(self, monto: float) -> float:
-        """Obtener comisión estimada para una transacción"""
-        try:
-            # Comisión típica de Binance: 0.2% - 1%
-            # Para MVP: 0.5%
-            comisión = monto * 0.005
-            logger.info(f"Comisión estimada: {comisión} USDT")
-            return comisión
-        
-        except Exception as e:
-            logger.error(f"❌ Error calculando comisión: {e}")
-            return 0.0
-    
-    async def obtener_estado_transaccion(self, hash_transaccion: str) -> Dict[str, Any]:
-        """Obtener estado de una transacción específica"""
-        try:
-            if not self.conectado:
-                return {"error": "No conectado"}
-            
-            logger.info(f"Consultando estado de transacción: {hash_transaccion}")
-            
-            # En producción:
-            # status = self.client.get_withdraw_history(txid=hash_transaccion)
-            
-            # MVP: retornar estado simulado
-            return {
-                "hash": hash_transaccion,
-                "estado": "completada",
-                "confirmaciones": 6,
-                "monto": 100.0,
-                "comisión": 2.0,
                 "timestamp": datetime.now().isoformat()
             }
+        except BinanceAPIException as e:
+            logger.error(f"❌ Error en transferencia Binance: {e}")
+            return {"exitoso": False, "error": str(e)}
+
+    async def obtener_tasa_cambio(self, simbolo: str = "USDT") -> Dict[str, float]:
+        """Obtener precios del mercado en tiempo real"""
+        if not self.conectado or not self.client:
+            await self.conectar()
+            
+        try:
+            # Ejemplo: USDT a BTC, ETH, etc.
+            prices = self.client.get_all_tickers()
+            relevant_prices = {}
+            for p in prices:
+                if p['symbol'] in ['BTCUSDT', 'ETHUSDT', 'BNBUSDT']:
+                    relevant_prices[p['symbol']] = float(p['price'])
+            return relevant_prices
+        except Exception:
+            return {"USDT": 1.0}
+
+    # Métodos de compatibilidad con la interfaz
+    async def desconectar(self) -> bool:
+        self.conectado = False
+        self.client = None
+        return True
+
+    async def obtener_historial_transacciones(self, limite: int = 50, offset: int = 0) -> List[Transaccion]:
+        # Implementación simplificada para el dashboard
+        return []
         
+    async def validar_direccion(self, direccion: str) -> bool:
+        return len(direccion) > 20 and (direccion.startswith('T') or direccion.startswith('0x'))
+
+    async def obtener_comisión_estimada(self, monto: float) -> float:
+        """Obtener comisión estimada para una transacción (USDT-TRC20)"""
+        # Basado en tarifas estándar de Binance para TRC20
+        return 1.0
+
+    async def obtener_estado_transaccion(self, hash_transaccion: str) -> Dict[str, Any]:
+        """Obtener estado de una transacción específica (retiro)"""
+        if not self.conectado or not self.client:
+            if not await self.conectar():
+                return {"estado": "error", "error": "No hay conexión con Binance"}
+            
+        try:
+            # Intenta buscar en el historial de retiros. 
+            # Binance permite filtrar por txId o el ID de retiro.
+            withdraws = self.client.get_withdraw_history()
+            for w in withdraws:
+                if w.get('id') == hash_transaccion or w.get('txId') == hash_transaccion:
+                    # Mapeo de estados de Binance:
+                    # 0:Email Sent, 1:Cancelled, 2:Awaiting Approval, 3:Rejected, 4:Processing, 5:Failure, 6:Completed
+                    status_map = {
+                        0: "pendiente",
+                        1: "fallida",
+                        2: "pendiente",
+                        3: "fallida",
+                        4: "pendiente",
+                        5: "fallida",
+                        6: "completada"
+                    }
+                    return {
+                        "exitoso": True,
+                        "id": w.get('id'),
+                        "hash": w.get('txId'),
+                        "estado": status_map.get(w.get('status'), "desconocido"),
+                        "monto": float(w.get('amount', 0)),
+                        "timestamp": w.get('applyTime')
+                    }
+            return {"exitoso": False, "estado": "no_encontrada", "error": "Transacción no hallada en el historial reciente"}
         except Exception as e:
-            logger.error(f"❌ Error obteniendo estado: {e}")
-            return {"error": str(e)}
+            logger.error(f"Error consultando estado de transacción: {e}")
+            return {"exitoso": False, "estado": "error", "error": str(e)}

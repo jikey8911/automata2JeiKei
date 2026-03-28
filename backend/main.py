@@ -2,19 +2,22 @@ import os
 import asyncio
 import json
 from datetime import datetime
-from typing import Set
+from typing import Set, Any
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel
+from utils.auth import create_access_token, verify_password, get_current_user, Token
 
 from adaptadores.postgres_adapter import PostgresAdapter
 from adaptadores.duckduckgo_adapter import DuckDuckGoAdapter
 from adaptadores.ollama_adapter import OllamaAdapter
 from adaptadores.appium_adapter import AppiumAdapter
 from adaptadores.binance_adapter import BinanceAdapter
+from adaptadores.dolarapp_adapter import DolarAppAdapter
 from dominio.agente import AgenteAutonomo
 from rutas_avanzadas import router as router_avanzado
 from rutas_configuracion import router as router_configuracion
@@ -32,6 +35,7 @@ generador_lenguaje = OllamaAdapter(OLLAMA_BASE_URL)
 # Crear adaptadores adicionales
 automatizador = AppiumAdapter()
 servicio_financiero = BinanceAdapter()
+respaldo_financiero = DolarAppAdapter(repositorio)
 
 # Crear agente
 agente = AgenteAutonomo(
@@ -39,7 +43,8 @@ agente = AgenteAutonomo(
     buscador=buscador,
     generador_lenguaje=generador_lenguaje,
     automatizador=automatizador,
-    servicio_financiero=servicio_financiero
+    servicio_financiero=servicio_financiero,
+    respaldo_financiero=respaldo_financiero
 )
 
 # Crear aplicación FastAPI
@@ -100,6 +105,34 @@ class ControlAgente(BaseModel):
     accion: str  # "iniciar", "pausar", "reanudar"
 
 
+# Rutas de Autenticación
+@app.post("/api/auth/login", response_model=Token)
+async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
+    """Endpoint para iniciar sesión y obtener token JWT"""
+    user = await repositorio.obtener_usuario(form_data.username)
+    if not user or not verify_password(form_data.password, user["password_hash"]):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Usuario o contraseña incorrectos",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    access_token = create_access_token(data={"sub": user["username"]})
+    return {"access_token": access_token, "token_type": "bearer"}
+
+
+@app.get("/api/auth/me")
+async def read_users_me(current_user: Any = Depends(get_current_user)):
+    """Obtener información del usuario actual"""
+    user = await repositorio.obtener_usuario(current_user.username)
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    # No devolver el hash de la contraseña
+    user_info = dict(user)
+    user_info.pop("password_hash")
+    return user_info
+
+
 # Rutas HTTP
 @app.get("/api/health")
 async def health_check():
@@ -112,7 +145,7 @@ async def health_check():
 
 
 @app.get("/api/status")
-async def obtener_status():
+async def obtener_status(current_user: Any = Depends(get_current_user)):
     """Obtener estado actual del agente y KPIs"""
     try:
         estado_bd = await repositorio.obtener_estado_agente()
@@ -132,7 +165,7 @@ async def obtener_status():
 
 
 @app.get("/api/modelos")
-async def obtener_modelos(estado: str = None):
+async def obtener_modelos(estado: str = None, current_user: Any = Depends(get_current_user)):
     """Obtener lista de modelos de ingresos"""
     try:
         modelos = await repositorio.obtener_todos_modelos(estado=estado)
@@ -156,7 +189,7 @@ async def obtener_modelos(estado: str = None):
 
 
 @app.post("/api/control")
-async def controlar_agente(control: ControlAgente):
+async def controlar_agente(control: ControlAgente, current_user: Any = Depends(get_current_user)):
     """Controlar el agente (iniciar, pausar, reanudar)"""
     try:
         if control.accion == "iniciar":
