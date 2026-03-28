@@ -18,6 +18,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copiar código de la aplicación
 COPY . .
 
+# Crear directorio para archivos estáticos
+RUN mkdir -p /app/static
+
+# Copiar archivos estáticos del frontend
+COPY static/ /app/static/
+
 # Exponer puerto
 EXPOSE 8000
 
