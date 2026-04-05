@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Activity, Coins, Cpu, RefreshCw } from "lucide-react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { useMemo } from "react";
+import { useState } from "react";
 
 type ContainerInfo = { name: string; status: string; id: string };
 type SectorInfo = { sector_name: string; discoverer_uae_id: string; status: string; created_at: string };
@@ -17,6 +18,7 @@ export default function Home() {
   const [bybitSecret, setBybitSecret] = useState("");
   const [bybitUid, setBybitUid] = useState("");
   const [ollamaUrl, setOllamaUrl] = useState("");
+  const [showSecretsModal, setShowSecretsModal] = useState(false);
 
   const loadStatus = async () => {
     setLoading(true);
@@ -36,6 +38,22 @@ export default function Home() {
     const id = setInterval(loadStatus, 5000);
     return () => clearInterval(id);
   }, []);
+
+  useEffect(() => {
+    const loadSecrets = async () => {
+      try {
+        const res = await fetch(`${apiBase}/v1/secrets`);
+        const json = await res.json();
+        setBybitKey(json.BYBIT_API_KEY || "");
+        setBybitSecret(json.BYBIT_API_SECRET || "");
+        setBybitUid(json.BYBIT_MASTER_UID || "");
+        setOllamaUrl(json.OLLAMA_URL || "");
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    loadSecrets();
+  }, [apiBase]);
 
   const totalUSDT = data.genesis_balance["USDT"] || 0;
   const totalUSDC = data.genesis_balance["USDC"] || 0;
@@ -119,63 +137,63 @@ export default function Home() {
         </Card>
 
         <Card className="bg-black/40 border-white/10 col-span-1 lg:col-span-3">
-          <CardHeader>
-            <CardTitle className="text-sm font-medium text-slate-400 uppercase">Configurar credenciales</CardTitle>
-          </CardHeader>
-          <CardContent className="grid md:grid-cols-4 gap-3">
-            <input
-              className="bg-slate-900 border border-white/10 rounded px-2 py-1 text-sm"
-              placeholder="BYBIT_API_KEY"
-              value={bybitKey}
-              onChange={(e) => setBybitKey(e.target.value)}
-            />
-            <input
-              className="bg-slate-900 border border-white/10 rounded px-2 py-1 text-sm"
-              placeholder="BYBIT_API_SECRET"
-              value={bybitSecret}
-              onChange={(e) => setBybitSecret(e.target.value)}
-            />
-            <input
-              className="bg-slate-900 border border-white/10 rounded px-2 py-1 text-sm"
-              placeholder="BYBIT_MASTER_UID"
-              value={bybitUid}
-              onChange={(e) => setBybitUid(e.target.value)}
-            />
-            <input
-              className="bg-slate-900 border border-white/10 rounded px-2 py-1 text-sm"
-              placeholder="OLLAMA_URL"
-              value={ollamaUrl}
-              onChange={(e) => setOllamaUrl(e.target.value)}
-            />
+          <CardHeader className="flex justify-between items-center">
+            <CardTitle className="text-sm font-medium text-slate-400 uppercase">Credenciales</CardTitle>
             <button
-              onClick={async () => {
-                try {
-                  await fetch(`${apiBase}/v1/secrets`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                      BYBIT_API_KEY: bybitKey || undefined,
-                      BYBIT_API_SECRET: bybitSecret || undefined,
-                      BYBIT_MASTER_UID: bybitUid || undefined,
-                      OLLAMA_URL: ollamaUrl || undefined,
-                    }),
-                  });
-                  setBybitKey("");
-                  setBybitSecret("");
-                  setBybitUid("");
-                  setOllamaUrl("");
-                  loadStatus();
-                } catch (err) {
-                  console.error(err);
-                }
-              }}
-              className="md:col-span-4 bg-blue-600 hover:bg-blue-700 text-white rounded px-3 py-2 text-sm font-semibold"
+              onClick={() => setShowSecretsModal(true)}
+              className="text-sm px-3 py-2 rounded bg-blue-600 hover:bg-blue-700 text-white"
             >
-              Guardar
+              Editar
             </button>
+          </CardHeader>
+          <CardContent>
+            <p className="text-slate-400 text-sm">Configura API keys y OLLAMA_URL.</p>
           </CardContent>
         </Card>
       </main>
+
+      {showSecretsModal && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+          <div className="bg-slate-900 border border-white/10 rounded-xl p-6 w-full max-w-3xl space-y-4">
+            <div className="flex justify-between items-center">
+              <h2 className="text-lg font-semibold text-white">Credenciales</h2>
+              <button onClick={() => setShowSecretsModal(false)} className="text-slate-400 hover:text-white">✕</button>
+            </div>
+            <div className="grid md:grid-cols-2 gap-3">
+              <input className="bg-slate-800 border border-white/10 rounded px-2 py-2 text-sm" placeholder="BYBIT_API_KEY" value={bybitKey} onChange={(e) => setBybitKey(e.target.value)} />
+              <input className="bg-slate-800 border border-white/10 rounded px-2 py-2 text-sm" placeholder="BYBIT_API_SECRET" value={bybitSecret} onChange={(e) => setBybitSecret(e.target.value)} />
+              <input className="bg-slate-800 border border-white/10 rounded px-2 py-2 text-sm" placeholder="BYBIT_MASTER_UID" value={bybitUid} onChange={(e) => setBybitUid(e.target.value)} />
+              <input className="bg-slate-800 border border-white/10 rounded px-2 py-2 text-sm" placeholder="OLLAMA_URL" value={ollamaUrl} onChange={(e) => setOllamaUrl(e.target.value)} />
+            </div>
+            <div className="flex gap-3 justify-end">
+              <button onClick={() => setShowSecretsModal(false)} className="px-3 py-2 rounded border border-white/10 text-slate-300">Cancelar</button>
+              <button
+                onClick={async () => {
+                  try {
+                    await fetch(`${apiBase}/v1/secrets`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        BYBIT_API_KEY: bybitKey || undefined,
+                        BYBIT_API_SECRET: bybitSecret || undefined,
+                        BYBIT_MASTER_UID: bybitUid || undefined,
+                        OLLAMA_URL: ollamaUrl || undefined,
+                      }),
+                    });
+                    setShowSecretsModal(false);
+                    loadStatus();
+                  } catch (err) {
+                    console.error(err);
+                  }
+                }}
+                className="px-3 py-2 rounded bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                Guardar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

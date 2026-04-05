@@ -284,6 +284,16 @@ class Supervisor:
                 logger.exception("Failed to save secrets: %s", exc)
                 raise HTTPException(status_code=500, detail="saving secrets failed")
 
+        @app.get("/api/v1/secrets")
+        async def get_secrets() -> Dict:
+            try:
+                keys = ["BYBIT_API_KEY", "BYBIT_API_SECRET", "BYBIT_MASTER_UID", "OLLAMA_URL"]
+                data = {k: self.secret_store.get_secret(k) for k in keys}
+                return data
+            except Exception as exc:
+                logger.exception("Failed to read secrets: %s", exc)
+                raise HTTPException(status_code=500, detail="reading secrets failed")
+
     async def _funding_poll_loop(self) -> None:
         last_total = 0.0
         while True:
