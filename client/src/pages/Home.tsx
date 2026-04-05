@@ -1,9 +1,7 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Activity, Coins, Cpu, RefreshCw } from "lucide-react";
-import { ChevronDown, ChevronRight } from "lucide-react";
-import { useMemo } from "react";
-import { useState } from "react";
+import { Activity, Coins, Cpu, RefreshCw, ChevronDown, ChevronRight } from "lucide-react";
+import { useMemo, useState } from "react";
 
 type ContainerInfo = { name: string; status: string; id: string };
 type SectorInfo = { sector_name: string; discoverer_uae_id: string; status: string; created_at: string };
