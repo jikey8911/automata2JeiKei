@@ -279,4 +279,29 @@ class VirtualCardManager:
         return {"card_id": card_id, "amount": amount_usd, "status": "queued"}
 
 
-__all__ = ["BybitManager", "VirtualCardManager"]
+class OkxManager:
+    """
+    Placeholder OKX manager to allow failover when Bybit is not reachable.
+    """
+
+    def __init__(self, secret_store: Optional[EncryptedSecretStore] = None) -> None:
+        self.store = secret_store or EncryptedSecretStore()
+
+    async def get_genesis_balance(self) -> Dict[str, float]:
+        logger.warning("OKX manager not implemented; returning zero balances")
+        return {"USDT": 0.0, "USDC": 0.0}
+
+    async def distribute_to_uae(self, uae_id: Optional[str], amount: float, coin: str = "USDT") -> Dict:
+        logger.warning("OKX distribute_to_uae not implemented; skipping")
+        return {}
+
+    async def collect_taxes(self, uae_id: str, amount: float, coin: str = "USDT") -> Dict:
+        logger.warning("OKX collect_taxes not implemented; skipping")
+        return {}
+
+    async def rebalance_to_funding(self, cushion: float = 50.0, coin: str = "USDT") -> Optional[Dict]:
+        logger.warning("OKX rebalance_to_funding not implemented; skipping")
+        return None
+
+
+__all__ = ["BybitManager", "VirtualCardManager", "OkxManager"]
