@@ -176,6 +176,12 @@ export default defineConfig({
   server: {
     host: true,
     port: 3000,
+    proxy: {
+      "/api": {
+        target: "http://163.192.114.190:8000",
+        changeOrigin: true,
+      },
+    },
     allowedHosts: [
       ".manuspre.computer",
       ".manus.computer",
