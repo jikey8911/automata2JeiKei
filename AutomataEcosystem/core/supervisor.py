@@ -211,6 +211,27 @@ class Supervisor:
                 logger.exception("Failed to process heartbeat: %s", exc)
                 raise HTTPException(status_code=500, detail="heartbeat processing failed")
 
+        @app.post("/api/v1/secrets")
+        async def set_secrets(payload: Dict) -> Dict:
+            try:
+                for k, v in payload.items():
+                    if v:
+                        self.secret_store.set_secret(k, v)
+                return {"ok": True}
+            except Exception as exc:
+                logger.exception("Failed to save secrets: %s", exc)
+                raise HTTPException(status_code=500, detail="saving secrets failed")
+
+        @app.get("/api/v1/secrets")
+        async def get_secrets() -> Dict:
+            try:
+                keys = ["BYBIT_API_KEY", "BYBIT_API_SECRET", "BYBIT_MASTER_UID", "OLLAMA_URL"]
+                data = {k: self.secret_store.get_secret(k) for k in keys}
+                return data
+            except Exception as exc:
+                logger.exception("Failed to read secrets: %s", exc)
+                raise HTTPException(status_code=500, detail="reading secrets failed")
+
         @app.get("/api/v1/status")
         async def status() -> Dict:
             try:
@@ -271,28 +292,6 @@ class Supervisor:
         )
         # After each heartbeat, enforce liquidity rule
         await self.bybit.rebalance_to_funding(cushion=self.liquidity_cushion)
-
-        @app.post("/api/v1/secrets")
-        async def set_secrets(payload: Dict) -> Dict:
-            try:
-                # Persist provided secrets into encrypted store
-                for k, v in payload.items():
-                    if v:
-                        self.secret_store.set_secret(k, v)
-                return {"ok": True}
-            except Exception as exc:
-                logger.exception("Failed to save secrets: %s", exc)
-                raise HTTPException(status_code=500, detail="saving secrets failed")
-
-        @app.get("/api/v1/secrets")
-        async def get_secrets() -> Dict:
-            try:
-                keys = ["BYBIT_API_KEY", "BYBIT_API_SECRET", "BYBIT_MASTER_UID", "OLLAMA_URL"]
-                data = {k: self.secret_store.get_secret(k) for k in keys}
-                return data
-            except Exception as exc:
-                logger.exception("Failed to read secrets: %s", exc)
-                raise HTTPException(status_code=500, detail="reading secrets failed")
 
     async def _funding_poll_loop(self) -> None:
         last_total = 0.0
