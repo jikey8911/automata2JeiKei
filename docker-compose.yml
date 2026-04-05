@@ -1,18 +1,32 @@
-version: "3.9"
-
 services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    ports:
+      - "11435:11434"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
   supervisor:
-    image: python:3.11-slim
+    build:
+      context: .
+      dockerfile: Dockerfile.supervisor
+    image: automata/supervisor:latest
     container_name: automata_supervisor
-    working_dir: /workspace
+    depends_on:
+      - ollama
     volumes:
-      - .:/workspace:rw
-      - /var/run/docker.sock:/var/run/docker.sock  # Docker socket passthrough so Supervisor can manage UAE containers
-      - ./AutomataEcosystem/data:/workspace/AutomataEcosystem/data  # Persist SQLite secrets/db
-      - ./AutomataEcosystem/logs:/workspace/AutomataEcosystem/logs  # Persist Supervisor/OpenClaw logs
+      - .:/app:rw
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./AutomataEcosystem/data:/app/AutomataEcosystem/data
+      - ./AutomataEcosystem/logs:/app/AutomataEcosystem/logs
     environment:
       - PYTHONUNBUFFERED=1
-    command: ["python", "-m", "AutomataEcosystem.core.supervisor"]  # uvicorn started inside supervisor.main()
+      - OLLAMA_URL=http://ollama:11434
     ports:
       - "8000:8000"
     restart: unless-stopped
@@ -23,15 +37,28 @@ services:
       dockerfile: Dockerfile.uae
     image: automata/uae-template:latest
     container_name: automata_uae_template
-    profiles: ["template"]   # avoids autostart; Supervisor will clone/run as needed
+    profiles: ["template"]
     command: ["python", "-m", "AutomataEcosystem.uae.main_agent"]
     volumes:
-      - ./AutomataEcosystem/data:/app/AutomataEcosystem/data  # shared secrets/DB if needed
-      - ./AutomataEcosystem/logs:/app/AutomataEcosystem/logs  # shared logs
+      - ./AutomataEcosystem/data:/app/AutomataEcosystem/data
+      - ./AutomataEcosystem/logs:/app/AutomataEcosystem/logs
+      - /var/run/docker.sock:/var/run/docker.sock
     environment:
       - PYTHONUNBUFFERED=1
+      - SUPERVISOR_URL=http://automata_supervisor:8000
+      - OLLAMA_URL=http://ollama:11434
     restart: "no"
 
-# Notes:
-# - Expose additional ports in supervisor if you add an API (e.g., FastAPI at 8000:8000).
-# - Ensure the host user has permission to access /var/run/docker.sock when running on local dev.
+  frontend:
+    image: node:18
+    container_name: automata_frontend
+    working_dir: /app/client
+    volumes:
+      - .:/app:rw
+    command: sh -c "npm install -g pnpm && pnpm install && pnpm dev --host 0.0.0.0 --port 3000"
+    environment:
+      - VITE_API_URL=http://automata_supervisor:8000/api
+    ports:
+      - "3000:3000"
+    depends_on:
+      - supervisor

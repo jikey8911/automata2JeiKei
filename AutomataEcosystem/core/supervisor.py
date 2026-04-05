@@ -197,6 +197,23 @@ class Supervisor:
                 logger.exception("Failed to process heartbeat: %s", exc)
                 raise HTTPException(status_code=500, detail="heartbeat processing failed")
 
+        @app.get("/api/v1/status")
+        async def status() -> Dict:
+            try:
+                containers = await asyncio.to_thread(
+                    lambda: [
+                        {"name": c.name, "status": c.status, "id": c.id[:12]}
+                        for c in self.client.containers.list(all=True)
+                        if c.name.startswith("UAE-")
+                    ]
+                )
+                sectors = list(self.sectors.list_all())
+                balances = await self.bybit.get_genesis_balance()
+                return {"containers": containers, "sectors": sectors, "genesis_balance": balances}
+            except Exception as exc:
+                logger.exception("Status endpoint failed: %s", exc)
+                raise HTTPException(status_code=500, detail="status failed")
+
         @app.post("/api/v1/request_spending")
         async def request_spending(payload: Dict) -> Dict:
             amount = float(payload.get("amount", 0))

@@ -1,68 +1,104 @@
-import { useAuth } from "@/contexts/AuthContext";
-import { Button } from "@/components/ui/button";
-import { Loader2, LogOut, Settings, Activity, ShieldCheck } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Activity, Coins, Cpu, RefreshCw } from "lucide-react";
+
+type ContainerInfo = { name: string; status: string; id: string };
+type SectorInfo = { sector_name: string; discoverer_uae_id: string; status: string; created_at: string };
+type StatusPayload = { containers: ContainerInfo[]; sectors: SectorInfo[]; genesis_balance: Record<string, number> };
 
 export default function Home() {
-  const { user, logout, isLoading } = useAuth();
+  const [data, setData] = useState<StatusPayload>({ containers: [], sectors: [], genesis_balance: {} });
+  const [loading, setLoading] = useState(false);
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-950">
-        <Loader2 className="animate-spin text-blue-500 h-10 w-10" />
-      </div>
-    );
-  }
+  const loadStatus = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/v1/status");
+      const json = await res.json();
+      setData(json);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadStatus();
+    const id = setInterval(loadStatus, 5000);
+    return () => clearInterval(id);
+  }, []);
+
+  const totalUSDT = data.genesis_balance["USDT"] || 0;
+  const totalUSDC = data.genesis_balance["USDC"] || 0;
 
   return (
     <div className="min-h-screen bg-slate-950 text-white p-6">
       <header className="flex justify-between items-center mb-8 border-b border-white/10 pb-6">
         <div>
-          <h1 className="text-2xl font-bold font-mono tracking-tighter text-blue-400">AUTOMATA AI</h1>
-          <p className="text-slate-400 text-sm">Panel de Control de Agente Autónomo</p>
+          <h1 className="text-2xl font-bold font-mono tracking-tighter text-blue-400">AUTOMATA SUPERVISOR</h1>
+          <p className="text-slate-400 text-sm">UAEs, Bybit, Ollama remoto</p>
         </div>
-        
-        <div className="flex items-center gap-4">
-          <div className="flex flex-col items-end">
-            <span className="text-sm font-semibold">{user?.full_name || user?.username}</span>
-            <span className="text-[10px] text-emerald-400 flex items-center gap-1">
-              <ShieldCheck className="h-3 w-3" /> VERIFICADO
-            </span>
-          </div>
-          <Button variant="ghost" size="icon" onClick={logout} className="hover:bg-red-500/10 hover:text-red-400 border border-white/5">
-            <LogOut className="h-5 w-5" />
-          </Button>
-        </div>
+        <button
+          onClick={loadStatus}
+          className="flex items-center gap-2 text-sm px-3 py-2 rounded border border-white/10 hover:border-blue-400"
+        >
+          <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} /> Refresh
+        </button>
       </header>
 
-      <main className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="bg-black/40 border-white/10 backdrop-blur-md">
+      <main className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <Card className="bg-black/40 border-white/10">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-slate-400 uppercase">Estado del Agente</CardTitle>
+            <CardTitle className="text-sm font-medium text-slate-400 uppercase">UAEs Activos</CardTitle>
             <Activity className="h-4 w-4 text-emerald-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">ACTIVO</div>
-            <p className="text-xs text-slate-500 mt-1">Sincronizado con Binance API</p>
+            <div className="text-3xl font-bold">{data.containers.length}</div>
+            <ul className="mt-3 space-y-1 text-sm text-slate-300">
+              {data.containers.map((c) => (
+                <li key={c.id} className="flex justify-between">
+                  <span>{c.name}</span>
+                  <span className="text-emerald-400 uppercase text-xs">{c.status}</span>
+                </li>
+              ))}
+              {data.containers.length === 0 && <li className="text-slate-500">Sin UAEs (monitor lanzará UAE-Alpha)</li>}
+            </ul>
           </CardContent>
         </Card>
 
-        {/* Placeholder para más métricas */}
-        <Card className="bg-black/40 border-white/10 backdrop-blur-md">
+        <Card className="bg-black/40 border-white/10">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-slate-400 uppercase">Configuración</CardTitle>
-            <Settings className="h-4 w-4 text-blue-400" />
+            <CardTitle className="text-sm font-medium text-slate-400 uppercase">Saldo Génesis (Bybit)</CardTitle>
+            <Coins className="h-4 w-4 text-yellow-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-slate-300">MODO PRO</div>
-            <p className="text-xs text-slate-500 mt-1">Fase 3: Ejecución Real</p>
+            <div className="text-xl font-semibold">USDT: {totalUSDT.toFixed(2)}</div>
+            <div className="text-xl font-semibold">USDC: {totalUSDC.toFixed(2)}</div>
+            <p className="text-xs text-slate-500 mt-2">Rebalanceo automático FUND/UNIFIED activo</p>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-black/40 border-white/10">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-slate-400 uppercase">Sectores Descubiertos</CardTitle>
+            <Cpu className="h-4 w-4 text-blue-400" />
+          </CardHeader>
+          <CardContent>
+            <ul className="space-y-1 text-sm text-slate-300">
+              {data.sectors.map((s) => (
+                <li key={s.sector_name} className="flex justify-between">
+                  <span>{s.sector_name}</span>
+                  <span className={`text-xs uppercase ${s.status === "profitable" ? "text-emerald-400" : s.status === "failed" ? "text-red-400" : "text-amber-300"}`}>
+                    {s.status}
+                  </span>
+                </li>
+              ))}
+              {data.sectors.length === 0 && <li className="text-slate-500">Sin sectores aún</li>}
+            </ul>
           </CardContent>
         </Card>
       </main>
-
-      <div className="mt-8 p-12 border-2 border-dashed border-white/5 rounded-3xl flex flex-col items-center justify-center text-slate-600 italic">
-        "La autonomía no es solo automatización, es inteligencia aplicada al valor."
-      </div>
     </div>
   );
 }
