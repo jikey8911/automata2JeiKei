@@ -55,7 +55,12 @@ app = FastAPI(
 )
 
 # CORS
-origins = ["http://163.192.114.190:3000", "http://localhost:3000"]
+origins = [
+    "http://163.192.114.190:3000",
+    "http://localhost:3000",
+    "http://automata_frontend:3000",
+    "http://frontend:3000",
+]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
