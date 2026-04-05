@@ -10,10 +10,12 @@ export default function Home() {
   const [data, setData] = useState<StatusPayload>({ containers: [], sectors: [], genesis_balance: {} });
   const [loading, setLoading] = useState(false);
 
+  const apiBase = import.meta.env.VITE_API_URL || "/api";
+
   const loadStatus = async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/v1/status");
+      const res = await fetch(`${apiBase}/v1/status`);
       const json = await res.json();
       setData(json);
     } catch (err) {
