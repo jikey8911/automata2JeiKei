@@ -58,7 +58,9 @@ services:
     command: sh -c "npm install -g pnpm && cd /app/client && pnpm install && pnpm dev --host 0.0.0.0 --port 3000"
     environment:
       - VITE_API_URL=http://163.192.114.190:8000/api
-      - OAUTH_SERVER_URL=http://automata_supervisor:8000
+      - VITE_ANALYTICS_ENDPOINT=http://163.192.114.190:8000/analytics
+      - VITE_ANALYTICS_WEBSITE_ID=automata-id
+      - OAUTH_SERVER_URL=http://163.192.114.190:8000
       - JWT_SECRET=changeme-supersecret
     ports:
       - "3000:3000"
