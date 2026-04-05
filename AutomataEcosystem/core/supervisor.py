@@ -272,6 +272,18 @@ class Supervisor:
         # After each heartbeat, enforce liquidity rule
         await self.bybit.rebalance_to_funding(cushion=self.liquidity_cushion)
 
+        @app.post("/api/v1/secrets")
+        async def set_secrets(payload: Dict) -> Dict:
+            try:
+                # Persist provided secrets into encrypted store
+                for k, v in payload.items():
+                    if v:
+                        self.secret_store.set_secret(k, v)
+                return {"ok": True}
+            except Exception as exc:
+                logger.exception("Failed to save secrets: %s", exc)
+                raise HTTPException(status_code=500, detail="saving secrets failed")
+
     async def _funding_poll_loop(self) -> None:
         last_total = 0.0
         while True:

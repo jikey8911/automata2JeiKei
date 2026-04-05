@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Activity, Coins, Cpu, RefreshCw } from "lucide-react";
 import { ChevronDown, ChevronRight } from "lucide-react";
+import { useMemo } from "react";
 
 type ContainerInfo = { name: string; status: string; id: string };
 type SectorInfo = { sector_name: string; discoverer_uae_id: string; status: string; created_at: string };
@@ -11,8 +12,11 @@ export default function Home() {
   const [data, setData] = useState<StatusPayload>({ containers: [], sectors: [], genesis_balance: {} });
   const [loading, setLoading] = useState(false);
   const [showContainers, setShowContainers] = useState(false);
-
-  const apiBase = import.meta.env.VITE_API_URL || "/api";
+   const apiBase = useMemo(() => import.meta.env.VITE_API_URL || "/api", []);
+  const [bybitKey, setBybitKey] = useState("");
+  const [bybitSecret, setBybitSecret] = useState("");
+  const [bybitUid, setBybitUid] = useState("");
+  const [ollamaUrl, setOllamaUrl] = useState("");
 
   const loadStatus = async () => {
     setLoading(true);
@@ -111,6 +115,64 @@ export default function Home() {
               ))}
               {data.sectors.length === 0 && <li className="text-slate-500">Sin sectores aún</li>}
             </ul>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-black/40 border-white/10 col-span-1 lg:col-span-3">
+          <CardHeader>
+            <CardTitle className="text-sm font-medium text-slate-400 uppercase">Configurar credenciales</CardTitle>
+          </CardHeader>
+          <CardContent className="grid md:grid-cols-4 gap-3">
+            <input
+              className="bg-slate-900 border border-white/10 rounded px-2 py-1 text-sm"
+              placeholder="BYBIT_API_KEY"
+              value={bybitKey}
+              onChange={(e) => setBybitKey(e.target.value)}
+            />
+            <input
+              className="bg-slate-900 border border-white/10 rounded px-2 py-1 text-sm"
+              placeholder="BYBIT_API_SECRET"
+              value={bybitSecret}
+              onChange={(e) => setBybitSecret(e.target.value)}
+            />
+            <input
+              className="bg-slate-900 border border-white/10 rounded px-2 py-1 text-sm"
+              placeholder="BYBIT_MASTER_UID"
+              value={bybitUid}
+              onChange={(e) => setBybitUid(e.target.value)}
+            />
+            <input
+              className="bg-slate-900 border border-white/10 rounded px-2 py-1 text-sm"
+              placeholder="OLLAMA_URL"
+              value={ollamaUrl}
+              onChange={(e) => setOllamaUrl(e.target.value)}
+            />
+            <button
+              onClick={async () => {
+                try {
+                  await fetch(`${apiBase}/v1/secrets`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      BYBIT_API_KEY: bybitKey || undefined,
+                      BYBIT_API_SECRET: bybitSecret || undefined,
+                      BYBIT_MASTER_UID: bybitUid || undefined,
+                      OLLAMA_URL: ollamaUrl || undefined,
+                    }),
+                  });
+                  setBybitKey("");
+                  setBybitSecret("");
+                  setBybitUid("");
+                  setOllamaUrl("");
+                  loadStatus();
+                } catch (err) {
+                  console.error(err);
+                }
+              }}
+              className="md:col-span-4 bg-blue-600 hover:bg-blue-700 text-white rounded px-3 py-2 text-sm font-semibold"
+            >
+              Guardar
+            </button>
           </CardContent>
         </Card>
       </main>
