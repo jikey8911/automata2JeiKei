@@ -1,0 +1,35 @@
+# Base image must support ARM (Ampere) and stay lightweight
+FROM python:3.11-slim
+
+# Install system deps for cryptography, docker, and common build tools
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+       build-essential \
+       libssl-dev \
+       libffi-dev \
+       libsqlite3-dev \
+       curl \
+       ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user for runtime isolation
+RUN useradd -ms /bin/bash uae
+
+WORKDIR /app
+
+# Copy dependency manifest first for better layer caching
+COPY requirements.txt /app/requirements.txt
+RUN python -m pip install --upgrade pip \
+    && pip install --no-cache-dir -r requirements.txt
+
+# Copy source code (Supervisors will mount or extend this image further)
+COPY AutomataEcosystem /app/AutomataEcosystem
+
+# Ensure writable dirs for logs and SQLite even under non-root
+RUN mkdir -p /app/AutomataEcosystem/logs /app/AutomataEcosystem/data \
+    && chown -R uae:uae /app
+
+USER uae
+
+# Default command placeholder; Supervisor/OpenClaw will override or exec main_agent.py
+CMD ["python", "-m", "AutomataEcosystem.uae.main_agent"]

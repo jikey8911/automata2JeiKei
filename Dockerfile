@@ -1,24 +1,15 @@
-FROM node:20-slim
+# UAE template image
+FROM python:3.11-slim
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends build-essential libssl-dev libffi-dev libsqlite3-dev curl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Instalar pnpm
-RUN npm install -g pnpm
+COPY requirements.txt /app/requirements.txt
+RUN python -m pip install --upgrade pip && pip install --no-cache-dir -r requirements.txt
 
-# Copiar archivos de dependencias
-COPY package.json pnpm-lock.yaml ./
+COPY . /app
 
-# Copiar patches
-COPY patches ./patches
-
-# Instalar dependencias
-RUN pnpm install --config.node-linker=hoisted
-
-# Copiar el resto del código
-COPY . .
-
-# Exponer puertos (Vite/Node)
-EXPOSE 3000
-
-# Script de inicio (Modo Desarrollo por defecto)
-CMD ["sh", "-c", "pnpm dev"]
+CMD ["python", "-m", "AutomataEcosystem.uae.main_agent"]

@@ -1,80 +1,37 @@
-version: '3.8'
+version: "3.9"
 
 services:
-  # PostgreSQL Database
-  db:
-    image: postgres:16-alpine
-    container_name: automata_db
-    environment:
-      POSTGRES_DB: automata_ai
-      POSTGRES_USER: automata
-      POSTGRES_PASSWORD: automata_secure_password
-    ports:
-      - "5432:5432"
+  supervisor:
+    image: python:3.11-slim
+    container_name: automata_supervisor
+    working_dir: /workspace
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./backend/init.sql:/docker-entrypoint-initdb.d/init.sql
-    networks:
-      - automata_network
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U automata"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  # Ollama LLM Service (GPU-enabled)
-  ollama:
-    image: ollama/ollama:latest
-    container_name: automata_ollama
+      - .:/workspace:rw
+      - /var/run/docker.sock:/var/run/docker.sock  # Docker socket passthrough so Supervisor can manage UAE containers
+      - ./AutomataEcosystem/data:/workspace/AutomataEcosystem/data  # Persist SQLite secrets/db
+      - ./AutomataEcosystem/logs:/workspace/AutomataEcosystem/logs  # Persist Supervisor/OpenClaw logs
     environment:
-      - OLLAMA_HOST=0.0.0.0:11434
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama_data:/root/.ollama
-    networks:
-      - automata_network
-    # Uncomment the following lines if you have NVIDIA GPU and nvidia-docker installed
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: 1
-    #           capabilities: [gpu]
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  # Python Agent Backend
-  agente:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: automata_agente
-    environment:
-      DATABASE_URL: postgresql://automata:automata_secure_password@db:5432/automata_ai
-      OLLAMA_BASE_URL: http://ollama:11434
-      PYTHONUNBUFFERED: 1
+      - PYTHONUNBUFFERED=1
+    command: ["python", "-m", "AutomataEcosystem.core.supervisor"]  # uvicorn started inside supervisor.main()
     ports:
       - "8000:8000"
-    depends_on:
-      db:
-        condition: service_healthy
-      ollama:
-        condition: service_healthy
+    restart: unless-stopped
+
+  uae_template:
+    build:
+      context: .
+      dockerfile: Dockerfile.uae
+    image: automata/uae-template:latest
+    container_name: automata_uae_template
+    profiles: ["template"]   # avoids autostart; Supervisor will clone/run as needed
+    command: ["python", "-m", "AutomataEcosystem.uae.main_agent"]
     volumes:
-      - ./backend:/app
-    networks:
-      - automata_network
-    command: python -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+      - ./AutomataEcosystem/data:/app/AutomataEcosystem/data  # shared secrets/DB if needed
+      - ./AutomataEcosystem/logs:/app/AutomataEcosystem/logs  # shared logs
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: "no"
 
-volumes:
-  postgres_data:
-  ollama_data:
-
-networks:
-  automata_network:
-    driver: bridge
+# Notes:
+# - Expose additional ports in supervisor if you add an API (e.g., FastAPI at 8000:8000).
+# - Ensure the host user has permission to access /var/run/docker.sock when running on local dev.
