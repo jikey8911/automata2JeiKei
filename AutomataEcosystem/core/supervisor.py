@@ -107,7 +107,7 @@ class Supervisor:
                     "VCC_NUMBER": card["number"],
                     "VCC_CVV": card["cvv"],
                     "VCC_EXP": card["exp"],
-                    "OLLAMA_URL": "http://100.122.166.17:11435",
+                    "OLLAMA_URL": "http://163.192.114.190:11435",
                 }
             )
 
