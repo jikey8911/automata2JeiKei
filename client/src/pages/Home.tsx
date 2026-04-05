@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Activity, Coins, Cpu, RefreshCw } from "lucide-react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 
 type ContainerInfo = { name: string; status: string; id: string };
 type SectorInfo = { sector_name: string; discoverer_uae_id: string; status: string; created_at: string };
@@ -9,6 +10,7 @@ type StatusPayload = { containers: ContainerInfo[]; sectors: SectorInfo[]; genes
 export default function Home() {
   const [data, setData] = useState<StatusPayload>({ containers: [], sectors: [], genesis_balance: {} });
   const [loading, setLoading] = useState(false);
+  const [showContainers, setShowContainers] = useState(false);
 
   const apiBase = import.meta.env.VITE_API_URL || "/api";
 
@@ -56,16 +58,27 @@ export default function Home() {
             <Activity className="h-4 w-4 text-emerald-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">{data.containers.length}</div>
-            <ul className="mt-3 space-y-1 text-sm text-slate-300">
-              {data.containers.map((c) => (
-                <li key={c.id} className="flex justify-between">
-                  <span>{c.name}</span>
-                  <span className="text-emerald-400 uppercase text-xs">{c.status}</span>
-                </li>
-              ))}
-              {data.containers.length === 0 && <li className="text-slate-500">Sin UAEs (monitor lanzará UAE-Alpha)</li>}
-            </ul>
+            <div className="flex items-center justify-between">
+              <div className="text-3xl font-bold">{data.containers.length}</div>
+              <button
+                onClick={() => setShowContainers((v) => !v)}
+                className="text-sm flex items-center gap-1 text-blue-300"
+              >
+                {showContainers ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                Detalle
+              </button>
+            </div>
+            {showContainers && (
+              <ul className="mt-3 space-y-1 text-sm text-slate-300">
+                {data.containers.map((c) => (
+                  <li key={c.id} className="flex justify-between">
+                    <span>{c.name}</span>
+                    <span className="text-emerald-400 uppercase text-xs">{c.status}</span>
+                  </li>
+                ))}
+                {data.containers.length === 0 && <li className="text-slate-500">Sin UAEs (monitor lanzará UAE-Alpha)</li>}
+              </ul>
+            )}
           </CardContent>
         </Card>
 

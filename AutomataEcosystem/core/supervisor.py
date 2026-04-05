@@ -10,6 +10,7 @@ from typing import Dict, Optional
 import asyncio
 import uuid
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
 import docker
@@ -173,6 +174,19 @@ class Supervisor:
     # ------------------- API Layer ------------------- #
     def _build_api(self) -> FastAPI:
         app = FastAPI(title="AutomataEcosystem Supervisor", version="0.1.0")
+
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=[
+                "http://163.192.114.190:3000",
+                "http://localhost:3000",
+                "http://automata_frontend:3000",
+                "http://frontend:3000",
+            ],
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
 
         @app.on_event("startup")
         async def _startup():
