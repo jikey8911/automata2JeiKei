@@ -5,11 +5,16 @@ import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
+import UaeList from "./pages/UaeList";
+import Sectors from "./pages/Sectors";
+import { Sidebar } from "./components/Sidebar";
 
 function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />
+      <Route path="/uaes" component={UaeList} />
+      <Route path="/sectors" component={Sectors} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>
@@ -22,7 +27,12 @@ function App() {
       <ThemeProvider defaultTheme="dark">
         <TooltipProvider>
           <Toaster />
-          <Router />
+          <div className="flex min-h-screen bg-slate-950 text-white">
+            <Sidebar />
+            <div className="flex-1">
+              <Router />
+            </div>
+          </div>
         </TooltipProvider>
       </ThemeProvider>
     </ErrorBoundary>
