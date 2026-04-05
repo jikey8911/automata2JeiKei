@@ -55,9 +55,10 @@ services:
     working_dir: /app/client
     volumes:
       - .:/app:rw
-    command: sh -c "npm install -g pnpm && pnpm install && pnpm dev --host 0.0.0.0 --port 3000"
+    command: sh -c "npm install -g pnpm && cd /app/client && pnpm install && pnpm dev --host 0.0.0.0 --port 3000"
     environment:
       - VITE_API_URL=http://automata_supervisor:8000/api
+      - OAUTH_SERVER_URL=http://dummy
     ports:
       - "3000:3000"
     depends_on:

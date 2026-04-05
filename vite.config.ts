@@ -13,6 +13,10 @@ import { vitePluginManusRuntime } from "vite-plugin-manus-runtime";
 
 const __dirname = path.dirname(new URL(import.meta.url).pathname);
 const PROJECT_ROOT = path.resolve(__dirname);
+const CLIENT_ROOT = path.join(PROJECT_ROOT, "client");
+const PUBLIC_DIR = path.join(CLIENT_ROOT, "public");
+const SHARED_DIR = path.join(PROJECT_ROOT, "shared");
+const ASSETS_DIR = path.join(PROJECT_ROOT, "attached_assets");
 const LOG_DIR = path.join(PROJECT_ROOT, ".manus-logs");
 const MAX_LOG_SIZE_BYTES = 1 * 1024 * 1024; // 1MB per log file
 const TRIM_TARGET_BYTES = Math.floor(MAX_LOG_SIZE_BYTES * 0.6); // Trim to 60% to avoid constant re-trimming
@@ -157,16 +161,16 @@ export default defineConfig({
   plugins,
   resolve: {
     alias: {
-      "@": path.resolve(import.meta.dirname, "client", "src"),
-      "@shared": path.resolve(import.meta.dirname, "shared"),
-      "@assets": path.resolve(import.meta.dirname, "attached_assets"),
+      "@": path.join(CLIENT_ROOT, "src"),
+      "@shared": SHARED_DIR,
+      "@assets": ASSETS_DIR,
     },
   },
-  envDir: path.resolve(import.meta.dirname),
-  root: path.resolve(import.meta.dirname, "client"),
-  publicDir: path.resolve(import.meta.dirname, "client", "public"),
+  envDir: PROJECT_ROOT,
+  root: CLIENT_ROOT,
+  publicDir: PUBLIC_DIR,
   build: {
-    outDir: path.resolve(import.meta.dirname, "dist/public"),
+    outDir: path.join(PROJECT_ROOT, "dist/public"),
     emptyOutDir: true,
   },
   server: {
