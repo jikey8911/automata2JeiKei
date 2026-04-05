@@ -50,7 +50,7 @@ services:
     restart: "no"
 
   frontend:
-    image: node:18
+    image: node:20
     container_name: automata_frontend
     working_dir: /app/client
     volumes:
@@ -58,7 +58,8 @@ services:
     command: sh -c "npm install -g pnpm && cd /app/client && pnpm install && pnpm dev --host 0.0.0.0 --port 3000"
     environment:
       - VITE_API_URL=http://automata_supervisor:8000/api
-      - OAUTH_SERVER_URL=http://dummy
+      - OAUTH_SERVER_URL=http://automata_supervisor:8000
+      - JWT_SECRET=changeme-supersecret
     ports:
       - "3000:3000"
     depends_on:
