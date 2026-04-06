@@ -164,6 +164,8 @@ export default defineConfig({
       "@": path.join(CLIENT_ROOT, "src"),
       "@shared": SHARED_DIR,
       "@assets": ASSETS_DIR,
+      react: path.join(PROJECT_ROOT, "node_modules/react"),
+      "react-dom": path.join(PROJECT_ROOT, "node_modules/react-dom"),
     },
     dedupe: ["react", "react-dom"],
   },
