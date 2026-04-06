@@ -165,10 +165,14 @@ export default defineConfig({
       "@shared": SHARED_DIR,
       "@assets": ASSETS_DIR,
     },
+    dedupe: ["react", "react-dom"],
   },
   envDir: PROJECT_ROOT,
   root: CLIENT_ROOT,
   publicDir: PUBLIC_DIR,
+  optimizeDeps: {
+    include: ["jeikei-design-system"],
+  },
   build: {
     outDir: path.join(PROJECT_ROOT, "dist/public"),
     emptyOutDir: true,
