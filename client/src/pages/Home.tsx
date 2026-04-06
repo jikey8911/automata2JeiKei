@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Activity, Coins, Cpu, RefreshCw, ChevronDown, ChevronRight } from "lucide-react";
+import { Activity, RefreshCw, ChevronDown, ChevronRight } from "lucide-react";
+import { NeoButton, NeoCard, NeoGrid, NeoPanel } from "jeikei-design-system";
 
 type ContainerInfo = { name: string; status: string; id: string };
 type SectorInfo = { sector_name: string; discoverer_uae_id: string; status: string; created_at: string };
@@ -10,7 +10,7 @@ export default function Home() {
   const [data, setData] = useState<StatusPayload>({ containers: [], sectors: [], genesis_balance: {} });
   const [loading, setLoading] = useState(false);
   const [showContainers, setShowContainers] = useState(false);
-   const apiBase = useMemo(() => import.meta.env.VITE_API_URL || "/api", []);
+  const apiBase = useMemo(() => import.meta.env.VITE_API_URL || "/api", []);
   const [bybitKey, setBybitKey] = useState("");
   const [bybitSecret, setBybitSecret] = useState("");
   const [bybitUid, setBybitUid] = useState("");
@@ -41,14 +41,14 @@ export default function Home() {
   useEffect(() => {
     const fetchLogs = async () => {
       try {
-        const res = await fetch(`${apiBase.replace("/api", "")}/logs`); // supervisor container logs endpoint (exposed by Docker)
+        const res = await fetch(`${apiBase}/v1/logs`);
         if (res.ok) {
           const text = await res.text();
           const lines = text.split("\n").slice(-50).filter(Boolean);
           setSupervisorLogs(lines);
         }
       } catch (e) {
-        console.error(e);
+        // Mantener silencioso si el endpoint no está disponible
       }
     };
     fetchLogs();
@@ -82,33 +82,33 @@ export default function Home() {
           <h1 className="text-2xl font-bold font-mono tracking-tighter text-blue-400">AUTOMATA SUPERVISOR</h1>
           <p className="text-slate-400 text-sm">UAEs, Bybit, Ollama remoto</p>
         </div>
-        <button
-          onClick={loadStatus}
-          className="flex items-center gap-2 text-sm px-3 py-2 rounded border border-white/10 hover:border-blue-400"
-        >
+        <NeoButton onClick={loadStatus} variant="primary" size="md" className="flex items-center gap-2">
           <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} /> Refresh
-        </button>
+        </NeoButton>
       </header>
 
-      <main className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <Card className="bg-black/40 border-white/10">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-slate-400 uppercase">UAEs Activos</CardTitle>
-              <Activity className="h-4 w-4 text-emerald-400" />
-            </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between">
-              <div className="text-3xl font-bold">{data.containers.length}</div>
+      <main className="space-y-6">
+        <NeoGrid columns={{ base: 1, md: 2, lg: 3 }} gap="md" className="w-full">
+          <NeoCard
+            title="UAEs Activos"
+            value={data.containers.length}
+            className="backdrop-blur border-white/10"
+            glow
+          >
+            <div className="flex items-center justify-between mt-3 text-sm text-slate-300">
+              <div className="flex items-center gap-2">
+                <Activity className="h-4 w-4 text-emerald-400" />
+                <span>{data.containers.length ? "Operando" : "Monitor esperando ignición"}</span>
+              </div>
               <button
                 onClick={() => setShowContainers((v) => !v)}
-                className="text-sm flex items-center gap-1 text-blue-300"
+                className="text-xs flex items-center gap-1 text-blue-300"
               >
-                {showContainers ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                Detalle
+                {showContainers ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />} Detalle
               </button>
             </div>
             {showContainers && (
-              <ul className="mt-3 space-y-1 text-sm text-slate-300">
+              <ul className="mt-3 space-y-1 text-sm text-slate-200">
                 {data.containers.map((c) => (
                   <li key={c.id} className="flex justify-between">
                     <span>{c.name}</span>
@@ -118,28 +118,14 @@ export default function Home() {
                 {data.containers.length === 0 && <li className="text-slate-500">Sin UAEs (monitor lanzará UAE-Alpha)</li>}
               </ul>
             )}
-          </CardContent>
-        </Card>
+          </NeoCard>
 
-        <Card className="bg-black/40 border-white/10">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-slate-400 uppercase">Saldo Génesis (Bybit)</CardTitle>
-            <Coins className="h-4 w-4 text-yellow-400" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-xl font-semibold">USDT: {totalUSDT.toFixed(2)}</div>
-            <div className="text-xl font-semibold">USDC: {totalUSDC.toFixed(2)}</div>
-            <p className="text-xs text-slate-500 mt-2">Rebalanceo automático FUND/UNIFIED activo</p>
-          </CardContent>
-        </Card>
+          <NeoCard title="Saldo Génesis (Bybit)" value={`${totalUSDT.toFixed(2)} USDT`} trend={`USDC ${totalUSDC.toFixed(2)}`} glow>
+            <p className="text-xs text-slate-400 mt-3">Rebalanceo automático FUND/UNIFIED activo</p>
+          </NeoCard>
 
-        <Card className="bg-black/40 border-white/10">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-slate-400 uppercase">Sectores Descubiertos</CardTitle>
-            <Cpu className="h-4 w-4 text-blue-400" />
-          </CardHeader>
-          <CardContent>
-            <ul className="space-y-1 text-sm text-slate-300">
+          <NeoCard title="Sectores Descubiertos" value={data.sectors.length} trend="Estado evolutivo" glow={false}>
+            <ul className="space-y-1 text-sm text-slate-200 mt-3">
               {data.sectors.map((s) => (
                 <li key={s.sector_name} className="flex justify-between">
                   <span>{s.sector_name}</span>
@@ -150,42 +136,35 @@ export default function Home() {
               ))}
               {data.sectors.length === 0 && <li className="text-slate-500">Sin sectores aún</li>}
             </ul>
-          </CardContent>
-        </Card>
+          </NeoCard>
+        </NeoGrid>
 
-        <Card className="bg-black/40 border-white/10 col-span-1 lg:col-span-3">
-          <CardHeader className="flex justify-between items-center">
-            <CardTitle className="text-sm font-medium text-slate-400 uppercase">Credenciales</CardTitle>
-            <button
-              onClick={() => setShowSecretsModal(true)}
-              className="text-sm px-3 py-2 rounded bg-blue-600 hover:bg-blue-700 text-white"
-            >
+        <NeoPanel glow className="border-white/10">
+          <div className="flex justify-between items-center mb-2">
+            <div>
+              <p className="text-xs uppercase text-slate-400">Credenciales</p>
+              <p className="text-sm text-slate-300">Configura API keys y OLLAMA_URL.</p>
+            </div>
+            <NeoButton variant="secondary" onClick={() => setShowSecretsModal(true)}>
               Editar
-            </button>
-          </CardHeader>
-          <CardContent>
-            <p className="text-slate-400 text-sm">Configura API keys y OLLAMA_URL.</p>
-          </CardContent>
-        </Card>
+            </NeoButton>
+          </div>
+        </NeoPanel>
 
-        <div className="col-span-1 lg:col-span-3 grid md:grid-cols-2 gap-4">
-          <Card className="bg-black/40 border-white/10">
-            <CardHeader>
-              <CardTitle className="text-sm font-medium text-slate-400 uppercase">Logs Supervisor (docker logs)</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-1 text-xs text-slate-300 max-h-64 overflow-y-auto">
+        <NeoGrid columns={{ base: 1, md: 2 }} gap="md">
+          <NeoPanel glow className="border-white/10">
+            <p className="text-xs uppercase text-slate-400 mb-3">Logs Supervisor</p>
+            <div className="space-y-1 text-xs text-slate-200 max-h-64 overflow-y-auto">
               {supervisorLogs.map((l, idx) => (
                 <div key={idx} className="border-b border-white/5 pb-1 whitespace-pre-wrap">{l}</div>
               ))}
               {supervisorLogs.length === 0 && <div className="text-slate-500">Sin logs aún</div>}
-            </CardContent>
-          </Card>
+            </div>
+          </NeoPanel>
 
-          <Card className="bg-black/40 border-white/10">
-            <CardHeader>
-              <CardTitle className="text-sm font-medium text-slate-400 uppercase">UAEs / actividad reciente</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-1 text-xs text-slate-300 max-h-64 overflow-y-auto">
+          <NeoPanel className="border-white/10">
+            <p className="text-xs uppercase text-slate-400 mb-3">UAEs / actividad reciente</p>
+            <div className="space-y-1 text-xs text-slate-200 max-h-64 overflow-y-auto">
               {data.containers.map((c) => (
                 <div key={c.id} className="border-b border-white/5 pb-2">
                   <div className="flex justify-between text-sm">
@@ -196,9 +175,9 @@ export default function Home() {
                 </div>
               ))}
               {data.containers.length === 0 && <div className="text-slate-500">Sin UAEs</div>}
-            </CardContent>
-          </Card>
-        </div>
+            </div>
+          </NeoPanel>
+        </NeoGrid>
       </main>
 
       {showSecretsModal && (

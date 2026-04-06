@@ -8,6 +8,7 @@ import Home from "./pages/Home";
 import UaeList from "./pages/UaeList";
 import Sectors from "./pages/Sectors";
 import { Sidebar } from "./components/Sidebar";
+import { SystemProvider } from "jeikei-design-system";
 
 function Router() {
   return (
@@ -24,17 +25,19 @@ function Router() {
 function App() {
   return (
     <ErrorBoundary>
-      <ThemeProvider defaultTheme="dark">
-        <TooltipProvider>
-          <Toaster />
-          <div className="flex min-h-screen bg-slate-950 text-white">
-            <Sidebar />
-            <div className="flex-1">
-              <Router />
+      <SystemProvider>
+        <ThemeProvider defaultTheme="dark">
+          <TooltipProvider>
+            <Toaster />
+            <div className="flex min-h-screen bg-slate-950 text-white">
+              <Sidebar />
+              <div className="flex-1">
+                <Router />
+              </div>
             </div>
-          </div>
-        </TooltipProvider>
-      </ThemeProvider>
+          </TooltipProvider>
+        </ThemeProvider>
+      </SystemProvider>
     </ErrorBoundary>
   );
 }
