@@ -110,7 +110,10 @@
       "wouter@3.7.1": "patches/wouter@3.7.1.patch"
     },
     "overrides": {
-      "tailwindcss>nanoid": "3.3.7"
+      "tailwindcss>nanoid": "3.3.7",
+      "jeikei-design-system>react": "19.2.1",
+      "jeikei-design-system>react-dom": "19.2.1",
+      "jeikei-design-system>three": "0.169.0"
     }
   }
 }
