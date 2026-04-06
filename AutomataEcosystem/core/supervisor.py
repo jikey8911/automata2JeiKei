@@ -9,8 +9,10 @@ from typing import Dict, Optional
 
 import asyncio
 import uuid
+import os
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import PlainTextResponse
 import uvicorn
 
 import docker
@@ -286,6 +288,34 @@ class Supervisor:
             except Exception as exc:
                 logger.exception("Spending request failed: %s", exc)
                 raise HTTPException(status_code=500, detail="spending failed")
+
+        @app.get("/api/v1/logs", response_class=PlainTextResponse)
+        async def logs(limit: int = 200) -> PlainTextResponse:
+            """
+            Devuelve las últimas líneas de los logs del supervisor (texto plano).
+            """
+            try:
+                container = None
+                # Intentar por nombre estándar
+                try:
+                    container = await asyncio.to_thread(self.client.containers.get, "automata_supervisor")
+                except NotFound:
+                    # Fallback: hostname dentro del contenedor
+                    hostname = os.environ.get("HOSTNAME")
+                    if hostname:
+                        try:
+                            container = await asyncio.to_thread(self.client.containers.get, hostname)
+                        except Exception:
+                            container = None
+                if container:
+                    raw = await asyncio.to_thread(container.logs, tail=limit)
+                    text = raw.decode("utf-8", errors="ignore")
+                else:
+                    text = "Logs no disponibles: contenedor supervisor no encontrado."
+                return PlainTextResponse(text)
+            except Exception as exc:
+                logger.warning("logs endpoint failed: %s", exc)
+                return PlainTextResponse("Logs no disponibles", status_code=500)
 
         return app
 
