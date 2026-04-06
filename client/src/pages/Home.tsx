@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Activity, Coins, Cpu, RefreshCw, ChevronDown, ChevronRight } from "lucide-react";
-import { NeoCard } from "jeikei-design-system";
 
 type ContainerInfo = { name: string; status: string; id: string };
 type SectorInfo = { sector_name: string; discoverer_uae_id: string; status: string; created_at: string };
@@ -159,29 +158,29 @@ export default function Home() {
         </Card>
 
         <div className="col-span-1 lg:col-span-3 grid md:grid-cols-2 gap-4">
-          <NeoCard variant="glass">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-semibold text-white">Logs Supervisor</h3>
-            </div>
-            <div className="space-y-1 text-xs text-slate-300 max-h-48 overflow-y-auto">
+          <Card className="bg-black/40 border-white/10">
+            <CardHeader>
+              <CardTitle className="text-sm font-medium text-slate-400 uppercase">Logs Supervisor</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-1 text-xs text-slate-300 max-h-48 overflow-y-auto">
               {supervisorLogs.map((l, idx) => (
                 <div key={idx} className="border-b border-white/5 pb-1">{l}</div>
               ))}
               {supervisorLogs.length === 0 && <div className="text-slate-500">Sin logs aún</div>}
-            </div>
-          </NeoCard>
+            </CardContent>
+          </Card>
 
-          <NeoCard variant="glass">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-semibold text-white">Logs UAEs</h3>
-            </div>
-            <div className="space-y-1 text-xs text-slate-300 max-h-48 overflow-y-auto">
+          <Card className="bg-black/40 border-white/10">
+            <CardHeader>
+              <CardTitle className="text-sm font-medium text-slate-400 uppercase">Logs UAEs</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-1 text-xs text-slate-300 max-h-48 overflow-y-auto">
               {uaeLogs.map((l, idx) => (
                 <div key={idx} className="border-b border-white/5 pb-1">{l}</div>
               ))}
               {uaeLogs.length === 0 && <div className="text-slate-500">Sin logs aún</div>}
-            </div>
-          </NeoCard>
+            </CardContent>
+          </Card>
         </div>
       </main>
 
