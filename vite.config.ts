@@ -173,7 +173,8 @@ export default defineConfig({
   root: CLIENT_ROOT,
   publicDir: PUBLIC_DIR,
   optimizeDeps: {
-    include: ["jeikei-design-system"],
+    exclude: ["jeikei-design-system"],
+    dedupe: ["react", "react-dom"],
   },
   build: {
     outDir: path.join(PROJECT_ROOT, "dist/public"),
