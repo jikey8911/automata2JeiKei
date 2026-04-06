@@ -16,15 +16,8 @@ export default function Home() {
   const [bybitUid, setBybitUid] = useState("");
   const [ollamaUrl, setOllamaUrl] = useState("");
   const [showSecretsModal, setShowSecretsModal] = useState(false);
-  const [supervisorLogs] = useState<string[]>([
-    "Supervisor inicializado",
-    "monitor_ecosystem en ejecución",
-    "Esperando heartbeats...",
-  ]);
-  const [uaeLogs] = useState<string[]>([
-    "UAE-Alpha: buscando oportunidades",
-    "Heartbeat enviado a supervisor",
-  ]);
+  const [supervisorLogs, setSupervisorLogs] = useState<string[]>([]);
+  const [uaeLogs, setUaeLogs] = useState<string[]>([]);
 
   const loadStatus = async () => {
     setLoading(true);
@@ -44,6 +37,24 @@ export default function Home() {
     const id = setInterval(loadStatus, 5000);
     return () => clearInterval(id);
   }, []);
+
+  useEffect(() => {
+    const fetchLogs = async () => {
+      try {
+        const res = await fetch(`${apiBase.replace("/api", "")}/logs`); // supervisor container logs endpoint (exposed by Docker)
+        if (res.ok) {
+          const text = await res.text();
+          const lines = text.split("\n").slice(-50).filter(Boolean);
+          setSupervisorLogs(lines);
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    };
+    fetchLogs();
+    const id = setInterval(fetchLogs, 10000);
+    return () => clearInterval(id);
+  }, [apiBase]);
 
   useEffect(() => {
     const loadSecrets = async () => {
@@ -80,11 +91,11 @@ export default function Home() {
       </header>
 
       <main className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card className="bg-black/40 border-white/10">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-slate-400 uppercase">UAEs Activos</CardTitle>
-            <Activity className="h-4 w-4 text-emerald-400" />
-          </CardHeader>
+          <Card className="bg-black/40 border-white/10">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-slate-400 uppercase">UAEs Activos</CardTitle>
+              <Activity className="h-4 w-4 text-emerald-400" />
+            </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between">
               <div className="text-3xl font-bold">{data.containers.length}</div>
@@ -160,11 +171,11 @@ export default function Home() {
         <div className="col-span-1 lg:col-span-3 grid md:grid-cols-2 gap-4">
           <Card className="bg-black/40 border-white/10">
             <CardHeader>
-              <CardTitle className="text-sm font-medium text-slate-400 uppercase">Logs Supervisor</CardTitle>
+              <CardTitle className="text-sm font-medium text-slate-400 uppercase">Logs Supervisor (docker logs)</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-1 text-xs text-slate-300 max-h-48 overflow-y-auto">
+            <CardContent className="space-y-1 text-xs text-slate-300 max-h-64 overflow-y-auto">
               {supervisorLogs.map((l, idx) => (
-                <div key={idx} className="border-b border-white/5 pb-1">{l}</div>
+                <div key={idx} className="border-b border-white/5 pb-1 whitespace-pre-wrap">{l}</div>
               ))}
               {supervisorLogs.length === 0 && <div className="text-slate-500">Sin logs aún</div>}
             </CardContent>
@@ -172,13 +183,19 @@ export default function Home() {
 
           <Card className="bg-black/40 border-white/10">
             <CardHeader>
-              <CardTitle className="text-sm font-medium text-slate-400 uppercase">Logs UAEs</CardTitle>
+              <CardTitle className="text-sm font-medium text-slate-400 uppercase">UAEs / actividad reciente</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-1 text-xs text-slate-300 max-h-48 overflow-y-auto">
-              {uaeLogs.map((l, idx) => (
-                <div key={idx} className="border-b border-white/5 pb-1">{l}</div>
+            <CardContent className="space-y-1 text-xs text-slate-300 max-h-64 overflow-y-auto">
+              {data.containers.map((c) => (
+                <div key={c.id} className="border-b border-white/5 pb-2">
+                  <div className="flex justify-between text-sm">
+                    <span>{c.name}</span>
+                    <span className="text-emerald-400 uppercase">{c.status}</span>
+                  </div>
+                  <div className="text-slate-400">Última actividad: heartbeat reciente</div>
+                </div>
               ))}
-              {uaeLogs.length === 0 && <div className="text-slate-500">Sin logs aún</div>}
+              {data.containers.length === 0 && <div className="text-slate-500">Sin UAEs</div>}
             </CardContent>
           </Card>
         </div>
