@@ -151,6 +151,9 @@ importers:
       input-otp:
         specifier: ^1.4.2
         version: 1.4.2(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
+      jeikei-design-system:
+        specifier: git+https://github.com/jikey8911/jeikei-design-system.git
+        version: jeikei-neural-design-system@https://codeload.github.com/jikey8911/jeikei-design-system/tar.gz/cf33aa90ac869ff98e196ae7f6565eadc563fe02
       jose:
         specifier: 6.1.0
         version: 6.1.0
@@ -3228,6 +3231,10 @@ packages:
   is-what@4.1.16:
     resolution: {integrity: sha512-ZhMwEosbFJkA0YhFnNDgTM4ZxDRsS6HqTo7qsZM08fehyRYIYa0yHu5R6mgo1n/8MgaPBXiPimPD77baVFYg+A==}
     engines: {node: '>=12.13'}
+
+  jeikei-neural-design-system@https://codeload.github.com/jikey8911/jeikei-design-system/tar.gz/cf33aa90ac869ff98e196ae7f6565eadc563fe02:
+    resolution: {tarball: https://codeload.github.com/jikey8911/jeikei-design-system/tar.gz/cf33aa90ac869ff98e196ae7f6565eadc563fe02}
+    version: 0.1.0
 
   jiti@2.6.1:
     resolution: {integrity: sha512-ekilCSN1jwRvIbgeg/57YFh8qQDNbwDb9xT/qu2DAHbFFZUicIl4ygVaAvzveMhMVr3LnpSKTNnwt8PoOfmKhQ==}
@@ -7640,6 +7647,8 @@ snapshots:
   is-property@1.0.2: {}
 
   is-what@4.1.16: {}
+
+  jeikei-neural-design-system@https://codeload.github.com/jikey8911/jeikei-design-system/tar.gz/cf33aa90ac869ff98e196ae7f6565eadc563fe02: {}
 
   jiti@2.6.1: {}
 
