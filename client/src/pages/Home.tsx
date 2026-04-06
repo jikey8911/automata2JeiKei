@@ -201,6 +201,7 @@ export default function Home() {
                   value={exchangeName}
                   onChange={(e) => setExchangeName(e.target.value)}
                 >
+                  <option value="binance">Binance (global)</option>
                   <option value="binanceus">Binance US</option>
                   <option value="coinbase">Coinbase</option>
                   <option value="kraken">Kraken</option>
