@@ -15,6 +15,7 @@ export default function Home() {
   const [bybitSecret, setBybitSecret] = useState("");
   const [bybitUid, setBybitUid] = useState("");
   const [ollamaUrl, setOllamaUrl] = useState("");
+  const [exchangeName, setExchangeName] = useState("binanceus");
   const [showSecretsModal, setShowSecretsModal] = useState(false);
   const [supervisorLogs, setSupervisorLogs] = useState<string[]>([]);
   const [uaeLogs, setUaeLogs] = useState<string[]>([]);
@@ -65,6 +66,7 @@ export default function Home() {
         setBybitSecret(json.BYBIT_API_SECRET || "");
         setBybitUid(json.BYBIT_MASTER_UID || "");
         setOllamaUrl(json.OLLAMA_URL || "");
+        setExchangeName(json.EXCHANGE_NAME || "binanceus");
       } catch (err) {
         console.error(err);
       }
@@ -192,6 +194,19 @@ export default function Home() {
               <input className="bg-slate-800 border border-white/10 rounded px-2 py-2 text-sm" placeholder="BYBIT_API_SECRET" value={bybitSecret} onChange={(e) => setBybitSecret(e.target.value)} />
               <input className="bg-slate-800 border border-white/10 rounded px-2 py-2 text-sm" placeholder="BYBIT_MASTER_UID" value={bybitUid} onChange={(e) => setBybitUid(e.target.value)} />
               <input className="bg-slate-800 border border-white/10 rounded px-2 py-2 text-sm" placeholder="OLLAMA_URL" value={ollamaUrl} onChange={(e) => setOllamaUrl(e.target.value)} />
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-slate-400">Exchange (ccxt) compatible con EEUU</label>
+                <select
+                  className="bg-slate-800 border border-white/10 rounded px-2 py-2 text-sm text-white"
+                  value={exchangeName}
+                  onChange={(e) => setExchangeName(e.target.value)}
+                >
+                  <option value="binanceus">Binance US</option>
+                  <option value="coinbase">Coinbase</option>
+                  <option value="kraken">Kraken</option>
+                  <option value="okx">OKX (puede requerir proxy/Geo)</option>
+                </select>
+              </div>
             </div>
             <div className="flex gap-3 justify-end">
               <button onClick={() => setShowSecretsModal(false)} className="px-3 py-2 rounded border border-white/10 text-slate-300">Cancelar</button>
@@ -206,6 +221,7 @@ export default function Home() {
                         BYBIT_API_SECRET: bybitSecret || undefined,
                         BYBIT_MASTER_UID: bybitUid || undefined,
                         OLLAMA_URL: ollamaUrl || undefined,
+                        EXCHANGE_NAME: exchangeName || undefined,
                       }),
                     });
                     setShowSecretsModal(false);

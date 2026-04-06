@@ -236,7 +236,13 @@ class Supervisor:
         @app.get("/api/v1/secrets")
         async def get_secrets() -> Dict:
             try:
-                keys = ["BYBIT_API_KEY", "BYBIT_API_SECRET", "BYBIT_MASTER_UID", "OLLAMA_URL"]
+                keys = [
+                    "BYBIT_API_KEY",
+                    "BYBIT_API_SECRET",
+                    "BYBIT_MASTER_UID",
+                    "OLLAMA_URL",
+                    "EXCHANGE_NAME",
+                ]
                 data = {k: self.secret_store.get_secret(k) for k in keys}
                 return data
             except Exception as exc:
