@@ -1,6 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
-@import "jeikei-design-system/src/v2/global.css";
+@import "jeikei-design-system/style.css";
 
 @custom-variant dark (&:is(.dark *));
 
