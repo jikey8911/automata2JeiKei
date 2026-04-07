@@ -630,10 +630,10 @@ class Supervisor:
                 for name, text in uae_data.items():
                     uae_summary[name] = await summarize(text)
 
-                return {\"supervisor\": sup_summary, \"uaes\": uae_summary}
+                return {"supervisor": sup_summary, "uaes": uae_summary}
             except Exception as exc:
-                logger.warning(\"logs_summary failed: %s\", exc)
-                return {\"supervisor\": [], \"uaes\": {}}
+                logger.warning("logs_summary failed: %s", exc)
+                return {"supervisor": [], "uaes": {}}
 
         @app.get("/api/v1/uae/logs")
         async def get_uae_logs():
