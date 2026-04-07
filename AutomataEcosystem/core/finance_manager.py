@@ -86,19 +86,17 @@ class ExchangeManager:
 
     async def _remote_call(self, method: str, args: list | None = None, kwargs: dict | None = None) -> Dict:
         """
-        Si CCXT_PROXY_URL está definido, manda la llamada a un ejecutor remoto (por ej. PC con Tailscale).
+        Si CCXT_PROXY_URL está definido, manda la llamada a un ejecutor remoto sin exponer credenciales.
         """
         if not self.ccxt_proxy:
             raise RuntimeError("CCXT proxy no configurado")
+        
         payload = {
-            "exchange_name": self.exchange_name,
-            "api_key": self.api_key,
-            "secret": self.api_secret,
-            "uid": self.master_uid,
             "method": method,
             "args": args or [],
             "kwargs": kwargs or {},
         }
+        
         async with httpx.AsyncClient(timeout=10.0) as client:
             r = await client.post(self.ccxt_proxy.rstrip("/") + "/ejecutar", json=payload)
             r.raise_for_status()
