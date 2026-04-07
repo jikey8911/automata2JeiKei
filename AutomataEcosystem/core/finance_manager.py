@@ -12,7 +12,7 @@ import os
 import sqlite3
 import uuid
 import secrets
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 
 import ccxt
 import httpx
@@ -181,60 +181,30 @@ class ExchangeManager:
 
     async def create_subaccount(self, name: str) -> Optional[str]:
         """
-        Intentar crear subcuenta en Bybit usando v5.
-        Reglas Bybit: 6-16 chars, alfanumérico, único.
+        Crea subcuenta en Bybit V5 (solo soportado para bybit).
+        Reglas: 6-16 chars, alfanumérico.
         """
         try:
             if self.exchange_name == "bybit":
-                # 1. Sanitizar: Solo letras y números
-                clean_name = "".join(filter(str.isalnum, name))
-                
-                # 2. Asegurar inicio con letra y longitud mínima
-                if not clean_name or not clean_name[0].isalpha():
+                clean_name = "".join(filter(str.isalnum, name)) or "uae"
+                if not clean_name[0].isalpha():
                     clean_name = "uae" + clean_name
-                
-                # 3. Añadir sufijo aleatorio y truncar a 16 max
-                suffix = secrets.token_hex(2)  # 4 caracteres
-                # Dejamos espacio para el sufijo cortando el nombre a 12
+                suffix = secrets.token_hex(2)
                 final_name = (clean_name[:12] + suffix).lower()
-                
-                # 4. Padding si es demasiado corto (Bybit pide min 6)
                 if len(final_name) < 6:
                     final_name = final_name.ljust(6, "0")
 
-                logger.info("Sanitized subaccount name: %s -> %s", name, final_name)
-                
-                # 5. Llamada corregida con 'username'
                 res = await self._call_ccxt(
-                    "privatePostV5UserCreateSubMember", 
-                    {
-                        "username": final_name,
-                        "memberType": 1,
-                        "switch": 1
-                    }
+                    "privatePostV5UserCreateSubMember",
+                    {"username": final_name, "memberType": 1, "switch": 1}
                 )
-                
                 result_data = res.get("result", {})
-                # En V5 el campo suele ser 'uid'
                 sub_uid = result_data.get("uid")
-                
-                # VALIDACIÓN CRÍTICA: Evitar transferencias circulares
                 if sub_uid and str(sub_uid) != str(self.master_uid):
-                    logger.info("Successfully created Bybit subaccount: %s", sub_uid)
+                    logger.info("Subcuenta creada UID=%s", sub_uid)
                     return str(sub_uid)
-                else:
-                    logger.error("Bybit devolvió el mismo UID que la cuenta maestra o un UID nulo")
-
-            # Si llegamos aquí, algo falló o el UID era idéntico
-            fallback = os.getenv("BYBIT_FALLBACK_SUB_UID")
-            
-            # Solo devolver fallback si NO es igual al master_uid (para evitar el error 131200 después)
-            if fallback and str(fallback) != str(self.master_uid):
-                logger.info("Using fallback sub UID=%s", fallback)
-                return str(fallback)
-            
+                logger.error("UID inválido (igual a master o nulo)")
             return None
-
         except Exception as exc:
             logger.warning("create_subaccount failed on %s: %s", self.exchange_name, exc)
             return None
@@ -339,24 +309,84 @@ class ExchangeManager:
             await self._log_transfer("to_uae_failed", uae_id, amount, transfer_id, {"error": str(exc)})
             return {"error": str(exc)}
 
-    async def collect_taxes(self, uae_id: str, amount: float, coin: str = "USDT") -> Dict:
+    async def collect_taxes(self, uae_id: str, amount: float, coin: str = "USDT", sub_uid: Optional[str] = None) -> Dict:
         """
-        No-op en ccxt genérico. Solo auditamos el intento.
+        Transfiere desde la subcuenta (UNIFIED) hacia la cuenta maestra (FUND).
+        sub_uid es obligatorio para Bybit; si no se pasa, intentamos usar uae_id cuando sea numérico.
         """
         transfer_id = str(uuid.uuid4())
-        logger.warning("collect_taxes no implementado para %s; amount=%.2f", self.exchange_name, amount)
-        await self._log_transfer("tax_failed", uae_id, amount, transfer_id, {"error": "not_implemented"})
-        return {}
+        source_uid = sub_uid or (uae_id if str(uae_id).isdigit() else None)
+
+        if self.exchange_name != "bybit":
+            logger.warning("collect_taxes no implementado para %s", self.exchange_name)
+            await self._log_transfer("tax_failed", uae_id, amount, transfer_id, {"error": "not_implemented"})
+            return {"error": "not_implemented"}
+
+        if not self.master_uid:
+            err = "master_uid vacío; no se puede cobrar impuestos"
+            logger.error(err)
+            await self._log_transfer("tax_failed", uae_id, amount, transfer_id, {"error": err})
+            return {"error": err}
+        if not source_uid:
+            err = "sub_uid vacío; no se puede mover fondos desde la subcuenta"
+            logger.error(err)
+            await self._log_transfer("tax_failed", uae_id, amount, transfer_id, {"error": err})
+            return {"error": err}
+
+        try:
+            res = await self._call_ccxt(
+                "privatePostV5AssetTransferUniversalTransfer",
+                {
+                    "transferId": transfer_id,
+                    "coin": coin,
+                    "amount": str(amount),
+                    "fromMemberId": str(source_uid),
+                    "toMemberId": str(self.master_uid),
+                    "fromAccountType": "UNIFIED",
+                    "toAccountType": "FUND",
+                },
+            )
+            await self._log_transfer("tax_success", uae_id, amount, transfer_id, res)
+            logger.info("Cobro de impuestos desde %s -> master %s: %.2f %s", source_uid, self.master_uid, amount, coin)
+            return res
+        except Exception as exc:
+            logger.error("collect_taxes failed: %s", exc)
+            await self._log_transfer("tax_failed", uae_id, amount, transfer_id, {"error": str(exc)})
+            return {"error": str(exc)}
 
     async def rebalance_to_funding(self, cushion: float = 50.0, coin: str = "USDT") -> Optional[Dict]:
         """
-        No-op en ccxt genérico (cada exchange difiere). Auditamos el exceso detectado.
+        Para Bybit: mueve excedente de UNIFIED a FUND para mantener colchón.
+        Otros exchanges: solo registra auditoría.
         """
         balance = await self.get_trading_balance(coin=coin)
         if balance <= cushion:
             return None
         excess = balance - cushion
         transfer_id = str(uuid.uuid4())
+
+        if self.exchange_name == "bybit" and self.master_uid:
+            try:
+                res = await self._call_ccxt(
+                    "privatePostV5AssetTransferUniversalTransfer",
+                    {
+                        "transferId": transfer_id,
+                        "coin": coin,
+                        "amount": str(excess),
+                        "fromMemberId": str(self.master_uid),
+                        "toMemberId": str(self.master_uid),
+                        "fromAccountType": "UNIFIED",
+                        "toAccountType": "FUND",
+                    },
+                )
+                await self._log_transfer("rebalance_success", "GENESIS", excess, transfer_id, res)
+                logger.info("Rebalanceo a FUND completado (%.2f %s)", excess, coin)
+                return res
+            except Exception as exc:
+                logger.error("rebalance_to_funding failed: %s", exc)
+                await self._log_transfer("rebalance_failed", "GENESIS", excess, transfer_id, {"error": str(exc)})
+                return {"error": str(exc)}
+
         logger.warning("rebalance_to_funding no implementado para %s; exceso=%.2f", self.exchange_name, excess)
         await self._log_transfer("rebalance_skipped", "GENESIS", excess, transfer_id, {"warning": "not_implemented"})
         return None
