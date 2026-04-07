@@ -39,6 +39,7 @@ SECRET_KEYS = [
     "GOPLACES_API_KEY",
     "NANO_BANANA_API_KEY",
     "NOTION_API_KEY",
+    "CCXT_PROXY_URL",
 ]
 
 import docker
