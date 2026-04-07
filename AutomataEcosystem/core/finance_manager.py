@@ -246,9 +246,20 @@ class ExchangeManager:
         """
         try:
             if self.exchange_name == "bybit":
-                res = await self._call_ccxt("privateGetV5UserQuerySubMembers")
-                sub_list = res.get("result", {}).get("subMemberList", [])
-                return [{"uid": str(s.get("uid")), "username": s.get("username")} for s in sub_list]
+                # El endpoint correcto en CCXT para V5 es este:
+                res = await self._call_ccxt("privateGetV5UserQuerySubMember")
+                
+                # Bybit V5 devuelve los datos en res['result']['subMembers']
+                result_data = res.get("result", {})
+                sub_list = result_data.get("subMembers", [])
+                
+                return [
+                    {
+                        "uid": str(s.get("uid")), 
+                        "username": s.get("username")
+                    } 
+                    for s in sub_list
+                ]
             return []
         except Exception as exc:
             logger.error("Failed to list subaccounts on %s: %s", self.exchange_name, exc)
