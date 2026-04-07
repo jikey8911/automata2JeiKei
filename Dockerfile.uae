@@ -10,6 +10,8 @@ RUN apt-get update \
        libsqlite3-dev \
        curl \
        ca-certificates \
+       nodejs \
+       npm \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Homebrew (brew) non-interactively for skill installs inside UAEs

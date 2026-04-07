@@ -214,6 +214,16 @@ class UaeRegistry:
                     """
                 )
                 conn.commit()
+                # Migración defensiva: añadir columna sub_account_name si falta
+                try:
+                    conn.execute("SELECT sub_account_name FROM uae_registry LIMIT 1;")
+                except Exception:
+                    try:
+                        conn.execute("ALTER TABLE uae_registry ADD COLUMN sub_account_name TEXT;")
+                        conn.commit()
+                        logger.info("Migrated uae_registry: added sub_account_name")
+                    except Exception as mig_exc:
+                        logger.warning("Migration sub_account_name failed (puede existir): %s", mig_exc)
         except Exception as exc:
             logger.exception("Failed to init uae_registry: %s", exc)
             raise
