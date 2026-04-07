@@ -59,14 +59,25 @@ class ExchangeManager:
         try:
             if not hasattr(ccxt, self.exchange_name):
                 raise ValueError(f"Exchange '{self.exchange_name}' no soportado por ccxt")
+            
+            class OrdenCCXT(BaseModel):
+                exchange_name: str    # ej: 'binance', 'kraken'
+                api_key: str
+                secret: str
+                uid: str | None = None  # Bybit subaccount UUID (optional)
+                method: str           # ej: 'fetch_ticker', 'fetch_balance'
+                args: list = []       # Argumentos normales (ej: ['BTC/USDT'])
+                kwargs: dict = {}     # Argumentos extra (ej: {'amount': 1})
+
             cls = getattr(ccxt, self.exchange_name)
-            self.client = cls(
-                {
-                    "apiKey": self.api_key,
-                    "secret": self.api_secret,
-                    "enableRateLimit": True,
-                }
-            )
+            exchange_kwargs = {
+                "apiKey": self.api_key,
+                "secret": self.api_secret,
+                "enableRateLimit": True,
+            }
+            if self.master_uid:
+                exchange_kwargs["uid"] = self.master_uid
+            self.client = cls(exchange_kwargs)
         except Exception as exc:
             logger.exception("Failed to init ccxt client for %s: %s", self.exchange_name, exc)
             raise
@@ -82,6 +93,7 @@ class ExchangeManager:
             "exchange_name": self.exchange_name,
             "api_key": self.api_key,
             "secret": self.api_secret,
+            "uid": self.master_uid,
             "method": method,
             "args": args or [],
         }
