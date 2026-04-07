@@ -287,7 +287,7 @@ class Supervisor:
 
                 exec_res = container.exec_run([
                     "openclaw", "agent", "create",
-                    "--name", "ceo",
+                    "ceo",
                     "-m", msg
                 ], user="root")
                 logger.info("Bootstrap agente CEO (%s): rc=%s out=%s", name, exec_res.exit_code, exec_res.output.decode(errors="ignore"))
