@@ -180,9 +180,16 @@ class Supervisor:
         except Exception as exc:
             logger.warning("CEO gateway test failed: %s", exc)
 
-    def _generate_soul(self, workspace: Path, uae_name: str, models: Dict[str, str]) -> None:
-        workspace.mkdir(parents=True, exist_ok=True)
-        soul_path = workspace / "SOUL.md"
+    def _generate_soul(self, home_dir: Path, uae_name: str, models: Dict[str, str]) -> None:
+        """
+        home_dir se montará en /home/node/.openclaw
+        Los archivos de prompts van en home_dir/workspace
+        """
+        home_dir.mkdir(parents=True, exist_ok=True)
+        ws = home_dir / "workspace"
+        ws.mkdir(parents=True, exist_ok=True)
+
+        soul_path = ws / "SOUL.md"
         if not soul_path.exists():
             soul_path.write_text(
                 f"Eres el CEO de {uae_name}. "
@@ -190,7 +197,7 @@ class Supervisor:
                 "Prioriza Ollama (modelo principal: llama3.2:3b, código: deepseek-coder:6.7b); "
                 "escala a modelos de pago solo si fallan dos intentos o la tarea es crítica.\n"
             )
-        config_path = workspace / "config.json"
+        config_path = ws / "config.json"
         if not config_path.exists():
             import json
             config_path.write_text(json.dumps({
@@ -209,14 +216,38 @@ class Supervisor:
                 }
             }, indent=2))
 
-    def _seed_proactive_agent(self, workspace: Path, uae_name: str) -> None:
+        # openclaw.json en el home para fijar proveedor/modelo
+        oc_json = home_dir / "openclaw.json"
+        if not oc_json.exists():
+            import json
+            oc_json.write_text(json.dumps({
+                "gateway": {
+                    "bind": "0.0.0.0",
+                    "port": self.openclaw_gateway_port
+                },
+                "providers": {
+                    "primary": {
+                        "provider": "ollama",
+                        "model": models.get("primary_model", "llama3.2:3b"),
+                        "baseUrl": models.get("ollama_url")
+                    },
+                    "code": {
+                        "provider": "ollama",
+                        "model": models.get("code_model", "deepseek-coder:6.7b"),
+                        "baseUrl": models.get("ollama_url")
+                    }
+                }
+            }, indent=2))
+
+    def _seed_proactive_agent(self, home_dir: Path, uae_name: str) -> None:
         """
         Crea archivos de arranque para que el CEO (OpenClaw) se inicie como agente proactivo.
         No depende de systemd; OpenClaw leerá estos prompts al cargar el workspace.
         """
-        workspace.mkdir(parents=True, exist_ok=True)
+        ws = home_dir / "workspace"
+        ws.mkdir(parents=True, exist_ok=True)
         # Prompt principal del agente
-        agent_md = workspace / "AGENT.md"
+        agent_md = ws / "AGENT.md"
         agent_md.write_text(
             "# Agente CEO Proactivo\n"
             f"- Identidad: {uae_name}\n"
@@ -265,8 +296,8 @@ class Supervisor:
                 name=name,
                 detach=True,
                 environment=env,
-                ports={f"18789/tcp": None},  # map aleatorio para evitar colisión; usamos red interna
-                volumes={str(workspace): {"bind": "/root/.openclaw/workspace", "mode": "rw"}},
+                ports={f"{self.openclaw_gateway_port}/tcp": None},  # aleatorio por defecto
+                volumes={str(workspace): {"bind": "/home/node/.openclaw", "mode": "rw"}},
                 network="automata_net",
                 auto_remove=False,
             )
@@ -279,18 +310,14 @@ class Supervisor:
             try:
                 # 1. Configurar el proveedor Ollama
                 ollama_url = env.get("OLLAMA_URL", "http://163.192.114.190:11435")
-                container.exec_run(["openclaw", "config", "set", "providers.ollama.baseUrl", ollama_url], user="root")
-                
-                # 2. Configurar el modelo principal
+                ollama_url = env.get("OLLAMA_URL", "http://163.192.114.190:11435")
                 primary_model = env.get("OLLAMA_MODEL", "llama3.2:3b")
-                container.exec_run(["openclaw", "config", "set", "models.primary", f"ollama/{primary_model}"], user="root")
 
-                # 3. Leer prompt de AGENT.md
-                agent_path = "/root/.openclaw/workspace/AGENT.md"
+                # Leer prompt de AGENT.md desde el workspace real
+                agent_path = "/home/node/.openclaw/workspace/AGENT.md"
                 cat_res = container.exec_run(["cat", agent_path], user="root")
                 msg = cat_res.output.decode(errors="ignore") if cat_res.exit_code == 0 else f"Agente CEO de {name}"
 
-                # 4. Crear el agente CEO usando el modelo configurado
                 exec_res = container.exec_run([
                     "openclaw", "agent", "create", "ceo",
                     "--model", f"ollama/{primary_model}",
@@ -314,6 +341,38 @@ class Supervisor:
             self.client.networks.create("automata_net", driver="bridge")
         except Exception as e:
             logger.warning("No se pudo verificar/crear la red automata_net: %s", e)
+
+    async def _ensure_openclaw_image(self) -> None:
+        """
+        Garantiza que la imagen de OpenClaw (OPENCLAW_IMAGE) exista.
+        Si no, la construye desde ./openclaw/Dockerfile
+        """
+        image_name = self.openclaw_image
+        try:
+            await asyncio.to_thread(self.client.images.get, image_name)
+            logger.info("Imagen OpenClaw '%s' encontrada.", image_name)
+            return
+        except NotFound:
+            logger.info("Imagen OpenClaw '%s' no encontrada. Construyendo desde ./openclaw ...", image_name)
+        except Exception as exc:
+            logger.warning("Error consultando imagen OpenClaw '%s': %s", image_name, exc)
+
+        build_path = Path("openclaw").resolve()
+        if not build_path.exists():
+            logger.error("No se encontró el directorio './openclaw' para construir la imagen OpenClaw.")
+            raise FileNotFoundError("Ruta ./openclaw no existe")
+        try:
+            await asyncio.to_thread(
+                self.client.images.build,
+                path=str(build_path),
+                dockerfile="Dockerfile",
+                tag=image_name,
+                rm=True
+            )
+            logger.info("Imagen OpenClaw '%s' construida exitosamente.", image_name)
+        except Exception as exc:
+            logger.error("Error construyendo imagen OpenClaw '%s': %s", image_name, exc)
+            raise
 
     async def _ensure_template_image(self) -> None:
         """
@@ -519,6 +578,7 @@ class Supervisor:
 
         @app.on_event("startup")
         async def _startup():
+            await self._ensure_openclaw_image()
             await self._ensure_template_image()
             self._poll_task = asyncio.create_task(self._funding_poll_loop())
             self._monitor_task = asyncio.create_task(self.monitor_ecosystem())
