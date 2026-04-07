@@ -8,6 +8,7 @@ import Home from "./pages/Home";
 import UaeList from "./pages/UaeList";
 import Sectors from "./pages/Sectors";
 import Settings from "./pages/Settings";
+import Subaccounts from "./pages/Subaccounts";
 import { Sidebar } from "./components/Sidebar";
 import { SystemProvider } from "jeikei-design-system";
 
@@ -16,6 +17,7 @@ function Router() {
       <Switch>
         <Route path="/" component={Home} />
         <Route path="/uaes" component={UaeList} />
+        <Route path="/subaccounts" component={Subaccounts} />
         <Route path="/sectors" component={Sectors} />
         <Route path="/settings" component={Settings} />
         <Route path="/404" component={NotFound} />

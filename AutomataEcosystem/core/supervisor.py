@@ -496,6 +496,54 @@ class Supervisor:
                 logger.error("Failed to fetch available subaccounts: %s", e)
                 raise HTTPException(status_code=500, detail=str(e))
 
+        @app.get("/api/v1/subaccounts")
+        async def api_list_subaccounts():
+            """
+            Lista subcuentas con balance y marca si están huérfanas (sin contenedor activo).
+            """
+            try:
+                subs = await self.exchange.list_subaccounts()
+                regs = {r["bybit_subaccount_id"]: r for r in self.registry.list_all()}
+                active_uids = set()
+                for c in await asyncio.to_thread(lambda: self.client.containers.list()):
+                    if c.name.startswith("UAE-") and c.status == "running":
+                        envs = c.attrs.get("Config", {}).get("Env", [])
+                        uid_env = next((e.split("=", 1)[1] for e in envs if e.startswith("BYBIT_SUB_UID=")), None)
+                        if uid_env:
+                            active_uids.add(uid_env)
+                items = []
+                for sub in subs:
+                    uid = str(sub.get("uid"))
+                    bal = await self.exchange.get_subaccount_balance(uid)
+                    reg = regs.get(uid)
+                    items.append({
+                        "uid": uid,
+                        "username": sub.get("username"),
+                        "balance_usdt": bal,
+                        "uae_id": reg["uae_id"] if reg else None,
+                        "status": reg["status"] if reg else "free",
+                        "orphan": uid not in active_uids,
+                    })
+                return {"items": items}
+            except Exception as exc:
+                logger.error("api_list_subaccounts failed: %s", exc)
+                raise HTTPException(status_code=500, detail=str(exc))
+
+        @app.delete("/api/v1/subaccounts/{sub_uid}")
+        async def api_delete_subaccount(sub_uid: str):
+            """
+            Termina subcuenta en el exchange y marca registro local como deleted si aplica.
+            """
+            try:
+                res = await self.exchange.terminate_subaccount(sub_uid)
+                for r in self.registry.list_all():
+                    if r["bybit_subaccount_id"] == sub_uid:
+                        self.registry.update_status(r["uae_id"], "deleted")
+                return res
+            except Exception as exc:
+                logger.error("api_delete_subaccount failed: %s", exc)
+                raise HTTPException(status_code=500, detail=str(exc))
+
         @app.patch("/api/v1/uae/registry/subaccount/{uae_id}")
         async def api_update_uae_subaccount(uae_id: str, payload: Dict):
             """

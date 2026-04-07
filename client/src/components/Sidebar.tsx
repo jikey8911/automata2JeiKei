@@ -1,10 +1,11 @@
 import { Link, useRoute } from "wouter";
-import { Home, Cpu, Grid, Settings, ChevronLeft, ChevronRight } from "lucide-react";
+import { Home, Cpu, Grid, Settings, ChevronLeft, ChevronRight, Wallet } from "lucide-react";
 import { useState } from "react";
 
 const links = [
   { href: "/", label: "Home", icon: Home },
   { href: "/uaes", label: "UAEs", icon: Cpu },
+  { href: "/subaccounts", label: "Subcuentas", icon: Wallet },
   { href: "/sectors", label: "Estrategias", icon: Grid },
 ];
 

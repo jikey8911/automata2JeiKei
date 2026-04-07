@@ -268,6 +268,23 @@ class ExchangeManager:
             logger.error("Failed to fetch balance for subaccount %s: %s", sub_uid, exc)
             return 0.0
 
+    async def terminate_subaccount(self, sub_uid: str) -> Dict:
+        """
+        Elimina/termina una subcuenta (solo Bybit). Si el exchange no lo soporta, devuelve error.
+        """
+        if self.exchange_name != "bybit":
+            return {"error": "terminate_subaccount no implementado para este exchange"}
+        try:
+            res = await self._call_ccxt(
+                "privatePostV5UserDeleteSubMember",
+                {"uid": str(sub_uid)}
+            )
+            logger.info("Subcuenta %s marcada para terminación", sub_uid)
+            return res
+        except Exception as exc:
+            logger.error("terminate_subaccount failed: %s", exc)
+            return {"error": str(exc)}
+
     async def distribute_to_uae(self, uae_id: str, sub_uid: str, amount: float, coin: str = "USDT") -> Dict:
         """
         Realiza una transferencia interna desde la cuenta Maestra a la Subcuenta.
