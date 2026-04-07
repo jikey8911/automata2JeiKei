@@ -596,8 +596,10 @@ class Supervisor:
 
                 prompt = (
                     "Resume los siguientes logs en 5-8 mensajes simples y accionables.\n"
-                    "Devuelve JSON con 'events': [{title, detail, severity (INFO/WARN/ERROR)}]. Si no hay datos, events vacío.\n"
-                    "Sé breve: no repitas texto largo ni preámbulos."
+                    "Devuelve SOLO este JSON (nada más):\n"
+                    '{\"events\":[{\"title\":\"...\",\"detail\":\"...\",\"severity\":\"INFO|WARN|ERROR\"}]}\n'
+                    "Si no hay datos, usa events vacía: {\"events\":[]}\n"
+                    "Sé breve en detail (1-2 frases) y no incluyas explicaciones fuera del JSON."
                 )
 
                 async def summarize(text: str) -> list:
