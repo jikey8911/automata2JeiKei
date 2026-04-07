@@ -1,11 +1,6 @@
-"""
-Agnostic research tool for digital profit opportunities using DuckDuckGo.
-"""
-
 from __future__ import annotations
 
 import logging
-import random
 from typing import List, Dict
 
 from duckduckgo_search import DDGS
@@ -16,40 +11,43 @@ if not logger.handlers:
     handler = logging.StreamHandler()
     logger.addHandler(handler)
 
-
-BASE_QUERIES = [
-    "high paying microtasks",
-    "new api monetization",
-    "emerging digital markets 2026",
-    "automated income streams",
-    "passive income api ideas",
-    "ai agents freelance marketplaces new",
-    "bug bounty new programs",
-    "airdrop upcoming 2026",
-    "seo arbitrage opportunities",
-    "defi yield new pools",
-]
-
-
 class ResearchTool:
-    def __init__(self, results: int = 3) -> None:
-        self.results = results
-
-    def _gen_query(self) -> str:
-        return random.choice(BASE_QUERIES)
+    def __init__(self, max_results: int = 5) -> None:
+        # Subimos un poco los resultados (ej. de 3 a 5) para darle más variedad al agente
+        self.max_results = max_results
 
     def search(self, query: str) -> List[Dict]:
+        """Ejecuta la búsqueda web exacta en DuckDuckGo."""
+        logger.info("Buscando oportunidad: '%s'", query)
         try:
             with DDGS() as ddgs:
-                hits = list(ddgs.text(query, max_results=self.results))
+                # Retorna un diccionario con 'title', 'href' y 'body'
+                hits = list(ddgs.text(query, max_results=self.max_results))
                 return hits
         except Exception as exc:
-            logger.warning("Research failed for %s: %s", query, exc)
+            logger.warning("Fallo en la búsqueda para '%s': %s", query, exc)
             return []
 
-    def find_opportunity(self) -> Dict:
-        query = self._gen_query()
-        results = self.search(query)
+    def find_opportunity(self, agent_query: str) -> Dict:
+        """
+        El agente DEBE proporcionar el 'agent_query' basado en su propio 
+        razonamiento y en los resultados de búsquedas anteriores.
+        """
+        if not agent_query:
+            return {"error": "El agente no proporcionó una consulta de búsqueda."}
+
+        results = self.search(agent_query)
+        
         if results:
-            return {"sector": "Unknown", "query": query, "lead": results[0]}
-        return {"sector": "Unknown", "query": query, "lead": {}}
+            return {
+                "status": "success",
+                "query_used": agent_query,
+                "leads_found": len(results),
+                "leads": results  # Le pasamos todos los resultados para que elija el mejor
+            }
+            
+        return {
+            "status": "no_results", 
+            "query_used": agent_query, 
+            "leads": []
+        }
