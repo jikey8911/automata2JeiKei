@@ -47,6 +47,7 @@
     "@trpc/react-query": "^11.6.0",
     "@trpc/server": "^11.6.0",
     "axios": "^1.12.0",
+    "ccxt": "^4.5.47",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
@@ -114,6 +115,11 @@
       "jeikei-design-system>react": "18.2.0",
       "jeikei-design-system>react-dom": "18.2.0",
       "jeikei-design-system>three": "0.169.0"
-    }
+    },
+    "onlyBuiltDependencies": [
+      "@tailwindcss/oxide",
+      "ccxt",
+      "esbuild"
+    ]
   }
 }
