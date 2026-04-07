@@ -193,7 +193,21 @@ class Supervisor:
         config_path = workspace / "config.json"
         if not config_path.exists():
             import json
-            config_path.write_text(json.dumps({"models": models}, indent=2))
+            config_path.write_text(json.dumps({
+                "models": models,
+                "providers": {
+                    "primary": {
+                        "provider": "ollama",
+                        "model": models.get("primary_model", "llama3.2:3b"),
+                        "baseUrl": models.get("ollama_url")
+                    },
+                    "code": {
+                        "provider": "ollama",
+                        "model": models.get("code_model", "deepseek-coder:6.7b"),
+                        "baseUrl": models.get("ollama_url")
+                    }
+                }
+            }, indent=2))
 
     def _seed_proactive_agent(self, workspace: Path, uae_name: str) -> None:
         """
@@ -258,6 +272,18 @@ class Supervisor:
                 auto_remove=False,
             )
             logger.info("UAE %s (OpenClaw) lanzada", name)
+
+            # Crear agente CEO proactivo dentro del contenedor (idempotente)
+            try:
+                exec_res = container.exec_run([
+                    "openclaw", "agent", "create",
+                    "--name", "ceo",
+                    "--bootstrap", "/root/.openclaw/workspace/AGENT.md"
+                ], user="root")
+                logger.info("Bootstrap agente CEO (%s): %s", name, exec_res.output.decode(errors="ignore"))
+            except Exception as exc:
+                logger.warning("No se pudo crear agente CEO dentro de %s: %s", name, exc)
+
             return container.id
         except Exception as exc:
             logger.error("No se pudo lanzar contenedor OpenClaw para %s: %s", name, exc)
@@ -368,6 +394,8 @@ class Supervisor:
                 "BYBIT_SUB_UID": sub_uid,
                 "OLLAMA_URL": self.ollama_url,
                 "OLLAMA_MODEL": "llama3.2:3b",
+                "OPENCLAW_PRIMARY_PROVIDER": "ollama",
+                "OPENCLAW_PRIMARY_MODEL": "llama3.2:3b",
                 "SUPERVISOR_URL": os.getenv("SUPERVISOR_URL", "http://automata_supervisor:8000"),
             })
             for key in SECRET_KEYS:
