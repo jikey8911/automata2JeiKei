@@ -38,7 +38,7 @@ export default function Home() {
 
   useEffect(() => {
     loadStatus();
-    const id = setInterval(loadStatus, 5000);
+    const id = setInterval(loadStatus, 40000);
     return () => clearInterval(id);
   }, []);
 
