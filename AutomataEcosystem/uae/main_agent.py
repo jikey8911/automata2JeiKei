@@ -114,7 +114,7 @@ class UaeAgent:
                     # d) Procesar resultado (ej: recolectar ganancias)
                     profit = result.get("profit", 0)
                     if profit > 0:
-                        msg = f"¡GANANCIA! Sector {opp.get('query')}: ${profit}"
+                        msg = f"[GANANCIA] Sector {opp.get('query')}: ${profit}"
                         console.log(f"[good]{msg}[/good]")
                         uae_log_buffer.append(msg)
                         
@@ -134,7 +134,7 @@ class UaeAgent:
 
             except Exception as exc:
                 logger.error("Error in UAE agent loop: %s", exc)
-                uae_log_buffer.append(f"ERROR LOOP: {exc}")
+                uae_log_buffer.append(f"[ERROR] LOOP: {exc}")
             
             await asyncio.sleep(POLL_INTERVAL)
 

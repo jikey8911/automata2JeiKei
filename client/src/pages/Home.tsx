@@ -19,7 +19,13 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [showContainers, setShowContainers] = useState(false);
   const apiBase = useMemo(() => import.meta.env.VITE_API_URL || "/api", []);
-  const wsBase = useMemo(() => apiBase.replace("http", "ws"), [apiBase]);
+  const wsBase = useMemo(() => {
+    if (apiBase.startsWith("http")) {
+      return apiBase.replace(/^http/, "ws");
+    }
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    return `${protocol}//${window.location.host}${apiBase}`;
+  }, [apiBase]);
   const [supervisorLogs, setSupervisorLogs] = useState<string[]>([]);
   const [uaeLogs, setUaeLogs] = useState<Record<string, string[]>>({});
   const [health, setHealth] = useState<HealthPayload | null>(null);
@@ -59,22 +65,27 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    const fetchLogs = async () => {
+    let socket: WebSocket | null = null;
+    const connectSupervisorWS = () => {
       try {
-        const res = await fetch(`${apiBase}/v1/logs`);
-        if (res.ok) {
-          const text = await res.text();
-          const lines = text.split("\n").slice(-50).filter(Boolean);
-          setSupervisorLogs(lines);
-        }
+        socket = new WebSocket(`${wsBase}/v1/supervisor/logs/ws`);
+        socket.onmessage = (event) => {
+          const line = event.data;
+          setSupervisorLogs((prev) => [...prev.slice(-49), line]);
+        };
+        socket.onerror = () => {
+          console.warn("Supervisor WS error");
+        };
+        socket.onclose = () => {
+          setTimeout(connectSupervisorWS, 5000);
+        };
       } catch (e) {
-        // Mantener silencioso si el endpoint no está disponible
+        console.error("Supervisor WS connection failed", e);
       }
     };
-    fetchLogs();
-    const id = setInterval(fetchLogs, 10000);
-    return () => clearInterval(id);
-  }, [apiBase]);
+    connectSupervisorWS();
+    return () => socket?.close();
+  }, [wsBase]);
 
   useEffect(() => {
     let socket: WebSocket | null = null;
@@ -82,7 +93,7 @@ export default function Home() {
 
     const connectWS = () => {
       try {
-        socket = new WebSocket(`${wsBase}/v1/uae/logs`);
+        socket = new WebSocket(`${wsBase}/v1/uae/logs/ws`);
         socket.onmessage = (event) => {
           const data = JSON.parse(event.data);
           if (data.logs) setUaeLogs(data.logs);

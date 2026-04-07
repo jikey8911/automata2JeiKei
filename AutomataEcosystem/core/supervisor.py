@@ -5,13 +5,17 @@ Supervisor orchestrates UAEs and exposes a heartbeat API.
 from __future__ import annotations
 
 import logging
-from typing import Dict, Optional
+import os
+import re
+import time
+import uuid
+from collections import deque, defaultdict
+from datetime import datetime
+from typing import Dict, List, Any, Optional
 
 import asyncio
-import uuid
-import os
-from datetime import datetime
-from collections import defaultdict, deque
+import docker
+from docker.errors import APIError, DockerException, NotFound
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse
@@ -42,11 +46,9 @@ SECRET_KEYS = [
     "CCXT_PROXY_URL",
 ]
 
-import docker
-from docker.errors import APIError, DockerException, NotFound
-
 from .database import EncryptedSecretStore, UaeRegistry, DiscoveredSectors
 from .finance_manager import ExchangeManager, VirtualCardManager
+from .supervisor_brain import SupervisorBrain
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -81,10 +83,13 @@ class Supervisor:
         self.registry = UaeRegistry(self.secret_store)
         self.sectors = DiscoveredSectors(self.secret_store)
         self.liquidity_cushion = liquidity_cushion
-        self._poll_task: Optional[asyncio.Task] = None
-        self._monitor_task: Optional[asyncio.Task] = None
-        self.uae_logs: Dict[str, deque] = defaultdict(lambda: deque(maxlen=20))
+        self.uae_logs = defaultdict(lambda: deque(maxlen=100))
         self.new_log_event = asyncio.Event()
+        self.brain = SupervisorBrain()
+        
+        # Monitoring task for UAE life cycles
+        self._poll_task = None
+        self._monitor_task = None
         self.app = self._build_api()
 
     def _connect_docker(self) -> docker.DockerClient:
@@ -246,7 +251,7 @@ class Supervisor:
             if self._monitor_task:
                 self._monitor_task.cancel()
 
-        @app.post("/api/v1/heartbeat")
+        @app.post("/api/v1/uae/heartbeat")
         async def heartbeat(payload: Dict) -> Dict:
             try:
                 await self._handle_heartbeat(payload)
@@ -406,23 +411,45 @@ class Supervisor:
         async def get_uae_logs():
             return {uid: list(logs) for uid, logs in self.uae_logs.items()}
 
-        @app.websocket("/ws/v1/uae/logs")
+        @app.websocket("/api/v1/uae/logs/ws")
         async def ws_uae_logs(websocket: WebSocket):
             await websocket.accept()
             try:
-                # Enviar estado inicial
+                # Initial state
                 initial_payload = {uid: list(logs) for uid, logs in self.uae_logs.items()}
                 await websocket.send_json({"logs": initial_payload})
                 
                 while True:
                     await self.new_log_event.wait()
+                    self.new_log_event.clear()
                     payload = {uid: list(logs) for uid, logs in self.uae_logs.items()}
                     await websocket.send_json({"logs": payload})
-                    self.new_log_event.clear()
             except WebSocketDisconnect:
-                logger.info("WS client disconnected")
+                pass
+
+        @app.websocket("/api/v1/supervisor/logs/ws")
+        async def ws_supervisor_logs(websocket: WebSocket):
+            await websocket.accept()
+            try:
+                # Get supervisor container
+                hostname = os.environ.get("HOSTNAME")
+                if not hostname:
+                    await websocket.send_text("HOSTNAME not found, cannot stream supervisor logs.")
+                    return
+                
+                container = await asyncio.to_thread(self.client.containers.get, hostname)
+                # Stream logs as they come
+                # Using tail=20 for initial context
+                async for line in self._stream_docker_logs(container, tail=20):
+                    await websocket.send_text(line)
+            except WebSocketDisconnect:
+                pass
             except Exception as e:
-                logger.error(f"WS error: {e}")
+                logger.error("Supervisor log streaming failed: %s", e)
+                try:
+                    await websocket.send_text(f"Error streaming logs: {e}")
+                except:
+                    pass
 
         @app.post("/api/v1/uae/mitosis/{uae_id}")
         async def api_mitosis(uae_id: str):
@@ -465,11 +492,66 @@ class Supervisor:
         if uae_id and new_logs:
             timestamp = datetime.now().strftime("%H:%M:%S")
             for msg in new_logs:
-                self.uae_logs[uae_id].append(f"[{timestamp}] {msg}")
+                formatted_msg = f"[{timestamp}] {msg}"
+                self.uae_logs[uae_id].append(formatted_msg)
+                # Trigger analysis
+                asyncio.create_task(self._analyze_uae_activity(uae_id, msg))
+
             self.new_log_event.set()
 
         # After each heartbeat, enforce liquidity rule
         await self.exchange.rebalance_to_funding(cushion=self.liquidity_cushion)
+
+    async def _analyze_uae_activity(self, uae_id: str, log_msg: str) -> None:
+        """
+        LLM-based analysis of UAE logs via SupervisorBrain (Ollama).
+        """
+        # 1. Filtro rápido de importancia (opcional)
+        if len(log_msg) < 10 and "BUSCANDO" not in log_msg.upper():
+            return
+
+        # 2. Análisis LLM
+        analysis = await self.brain.analyze_log(uae_id, log_msg)
+        
+        severity = analysis.get("severity", "INFO")
+        action = analysis.get("action", "NONE")
+        insight = analysis.get("insight", "")
+
+        if action != "NONE" or severity != "INFO":
+            log_entry = f"[BRAIN] {uae_id} -> {severity} | Acción: {action} | {insight}"
+            if severity == "CRITICAL":
+                logger.error(log_entry)
+            elif severity == "WARNING":
+                logger.warning(log_entry)
+            else:
+                logger.info(log_entry)
+
+            # Acciones automáticas programadas
+            if action == "REBALANCE":
+                asyncio.create_task(self.exchange.rebalance_to_funding(cushion=self.liquidity_cushion))
+            elif action == "STOP_UAE":
+                logger.warning("Supervisor Brain sugirió detener UAE %s", uae_id)
+                # await self.terminate_uae(uae_id)
+            elif action == "MITOSIS":
+                logger.info("Supervisor Brain sugirió MITOSIS para %s", uae_id)
+                # Trigger mitosis logic here if desired
+
+    async def _stream_docker_logs(self, container, tail=20):
+        """
+        Generator to stream docker logs as they are written.
+        """
+        # generator is blocking, so we use to_thread inside loop or run it in background
+        # Simple implementation using tail as initial and then streaming
+        logs = container.logs(stream=True, follow=True, tail=tail)
+        while True:
+            try:
+                line = await asyncio.to_thread(next, logs)
+                yield line.decode("utf-8", errors="ignore").strip()
+            except StopIteration:
+                break
+            except Exception as e:
+                logger.error("Error streaming logs from thread: %s", e)
+                break
 
     async def _funding_poll_loop(self) -> None:
         last_total = 0.0
