@@ -263,7 +263,7 @@ class Supervisor:
             "  * Pide presupuesto mínimo para prototipo (1–2 USDT) y escala solo con resultados.\n"
         )
         # Archivo de tareas iniciales
-        boot_md = workspace / "tasks_boot.md"
+        boot_md = ws / "tasks_boot.md"
         boot_md.write_text(
             "## Tarea inicial\n"
             "- Explora nuevas fuentes de ingreso digital (microtareas bien pagadas, arbitraje de APIs, mercados emergentes, DeFi bajo riesgo).\n"
