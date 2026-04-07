@@ -77,7 +77,7 @@ export default function Home() {
       }
     };
     fetchLogs();
-    const id = setInterval(fetchLogs, 15000);
+    const id = setInterval(fetchLogs, 45000);
     return () => clearInterval(id);
   }, [apiBase]);
 
