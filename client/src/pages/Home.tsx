@@ -112,7 +112,7 @@ export default function Home() {
           ))}
         </div>
 
-        <NeoGrid columns={{ base: 1, md: 2, lg: 3 }} gap="md" className="w-full">
+        <NeoGrid columns={{ base: 1, md: 3 }} gap="md" className="w-full">
           <NeoCard
             title="UAEs Activos"
             value={data.containers.length}
@@ -163,7 +163,7 @@ export default function Home() {
           </NeoCard>
         </NeoGrid>
 
-        <NeoGrid columns={{ base: 1, md: 2 }} gap="md">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <NeoPanel glow className="border-white/10">
             <p className="text-xs uppercase text-slate-400 mb-3">Logs Supervisor</p>
             <div className="space-y-1 text-xs text-slate-200 max-h-64 overflow-y-auto">
@@ -175,7 +175,7 @@ export default function Home() {
           </NeoPanel>
 
           <NeoPanel className="border-white/10">
-            <p className="text-xs uppercase text-slate-400 mb-3">UAEs / actividad reciente</p>
+            <p className="text-xs uppercase text-slate-400 mb-3">Logs UAEs / actividad</p>
             <div className="space-y-1 text-xs text-slate-200 max-h-64 overflow-y-auto">
               {data.containers.map((c) => (
                 <div key={c.id} className="border-b border-white/5 pb-2">
@@ -189,7 +189,7 @@ export default function Home() {
               {data.containers.length === 0 && <div className="text-slate-500">Sin UAEs</div>}
             </div>
           </NeoPanel>
-        </NeoGrid>
+        </div>
       </main>
 
     </div>
