@@ -396,7 +396,7 @@ class Supervisor:
                     "ollama": False,
                 }
 
-        @app.get("/api/v1/uaes")
+        @app.get("/api/v1/uae/list")
         async def api_list_all_uaes():
             """
             Devuelve la lista completa de UAEs registradas con sus saldos actuales.
@@ -415,7 +415,7 @@ class Supervisor:
                         **entry,
                         "balance": balance
                     })
-                return enriched
+                return {"uaes": enriched}
             except Exception as exc:
                 logger.error("Failed to list and enrich UAEs: %s", exc)
                 raise HTTPException(status_code=500, detail="registry_error")
@@ -440,6 +440,22 @@ class Supervisor:
                 raise HTTPException(status_code=400, detail=res["error"])
             
             return {"ok": True, "res": res}
+
+        @app.patch("/api/v1/uae/registry/subaccount/{uae_id}")
+        async def api_update_uae_subaccount(uae_id: str, payload: Dict):
+            """
+            Actualiza el UID de la subcuenta Bybit asociada a una UAE en el registro.
+            """
+            sub_uid = payload.get("sub_uid")
+            if not sub_uid:
+                raise HTTPException(status_code=400, detail="Falta sub_uid en el payload")
+            
+            try:
+                self.registry.update_subaccount(uae_id, sub_uid)
+                return {"ok": True, "message": f"Subcuenta de {uae_id} actualizada a {sub_uid}"}
+            except Exception as e:
+                logger.error("Failed to update UAE subaccount registry: %s", e)
+                raise HTTPException(status_code=500, detail=str(e))
 
         @app.post("/api/v1/request_spending")
         async def request_spending(payload: Dict) -> Dict:

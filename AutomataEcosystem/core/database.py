@@ -263,6 +263,15 @@ class UaeRegistry:
             logger.exception("Failed to update status for %s: %s", uae_id, exc)
             raise
 
+    def update_subaccount(self, uae_id: str, sub_uid: str) -> None:
+        try:
+            with self.store._get_connection() as conn:  # type: ignore[attr-defined]
+                conn.execute("UPDATE uae_registry SET bybit_subaccount_id=? WHERE uae_id=?;", (sub_uid, uae_id))
+                conn.commit()
+        except Exception as exc:
+            logger.exception("Failed to update subaccount for %s: %s", uae_id, exc)
+            raise
+
     def list_all(self) -> Iterable[dict]:
         with self.store._get_connection() as conn:  # type: ignore[attr-defined]
             rows = conn.execute(
