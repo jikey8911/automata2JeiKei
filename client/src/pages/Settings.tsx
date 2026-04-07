@@ -20,6 +20,7 @@ const SECRET_FIELDS = [
   { key: "NANO_BANANA_API_KEY", label: "NANO_BANANA_API_KEY" },
   { key: "NOTION_API_KEY", label: "NOTION_API_KEY" },
   { key: "CCXT_PROXY_URL", label: "CCXT_PROXY_URL" },
+  { key: "OPENCLAW_GATEWAY_TOKEN", label: "OPENCLAW_GATEWAY_TOKEN" },
 ];
 
 export default function Settings() {
