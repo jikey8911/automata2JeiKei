@@ -259,20 +259,33 @@ class ExchangeManager:
         Realiza una transferencia interna desde la cuenta Maestra a la Subcuenta.
         """
         transfer_id = str(uuid.uuid4())
+        
+        # --- VALIDACIÓN CRÍTICA (Evitar transferencias circulares) ---
+        if not sub_uid or str(sub_uid) == str(self.master_uid):
+            error_msg = f"Transferencia abortada: sub_uid ({sub_uid}) es igual al master_uid o inválido."
+            logger.error(error_msg)
+            return {"error": error_msg}
+        # -------------------------------------------------------------
+
         try:
-            # Bybit Inter-account transfer (SPOT to SPOT)
-            # Para Bybit v5, se usa transfer(coin, amount, fromAccount, toAccount, params={'toMemberId': sub_uid})
+            # Uso directo del endpoint de Bybit V5 para transferencia interna (Inter-Transfer)
+            # Esto garantiza idempotencia mediante transferId y compatibilidad con UTA (UNIFIED)
             res = await self._call_ccxt(
-                "transfer", 
-                coin, 
-                amount, 
-                "SPOT", 
-                "SPOT", 
-                params={"toMemberId": sub_uid}
+                "privatePostV5AssetTransferInterTransfer", 
+                {
+                    "transferId": transfer_id,      # Idempotencia vía UUID
+                    "coin": coin,
+                    "amount": str(amount),          # Casting a string para Bybit V5
+                    "fromAccountType": "FUND",      # Origen (Maestra - Fondos)
+                    "toAccountType": "UNIFIED",     # Destino (Subcuenta - UTA)
+                    "toMemberId": str(sub_uid)      # ID de la subcuenta receptora
+                }
             )
+            
             await self._log_transfer("to_uae_success", uae_id, amount, transfer_id, res)
             logger.info("Transferencia exitosa a UAE %s (%s): %.2f %s", uae_id, sub_uid, amount, coin)
             return res
+
         except Exception as exc:
             logger.error("distribute_to_uae failed: %s", exc)
             await self._log_transfer("to_uae_failed", uae_id, amount, transfer_id, {"error": str(exc)})

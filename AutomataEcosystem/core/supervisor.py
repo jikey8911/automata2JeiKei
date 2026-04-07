@@ -162,6 +162,10 @@ class Supervisor:
             if not sub_uid:
                 logger.info("CERO subcuentas libres. Iniciando creación de nueva subcuenta para '%s'...", name)
                 sub_uid = await self.exchange.create_subaccount(name)
+                if sub_uid:
+                    # Delay sugerido por el usuario para propagación en Bybit
+                    logger.info("Esperando 2s para propagación de subcuenta...")
+                    await asyncio.sleep(2)
             
             if not sub_uid:
                 raise RuntimeError(f"Imposible asignar subcuenta para {name}")
