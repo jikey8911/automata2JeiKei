@@ -638,8 +638,12 @@ class Supervisor:
                             match = re.search(r"{.*}", raw, re.DOTALL)
                             if match:
                                 import json as _json
-                                parsed = _json.loads(match.group(0))
-                                return parsed.get("events", [])
+                                try:
+                                    parsed = _json.loads(match.group(0))
+                                    return parsed.get("events", [])
+                                except Exception as jerr:
+                                    logger.warning("Ollama JSON parse failed: %s", jerr)
+                                    return fallback_events(trimmed)
                             # Si no pudo parsear JSON, intentar fallback
                             return fallback_events(text)
                     except Exception as exc:
