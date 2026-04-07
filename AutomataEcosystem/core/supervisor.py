@@ -78,6 +78,7 @@ class Supervisor:
         self.secret_store = secret_store or EncryptedSecretStore()
         self.target_platform = target_platform
         self.client = docker_client or self._connect_docker()
+        self._ensure_network()
         self.exchange = ExchangeManager(secret_store=self.secret_store)
         self.virtual_cards = VirtualCardManager(self.exchange)
         self.registry = UaeRegistry(self.secret_store)
@@ -104,6 +105,38 @@ class Supervisor:
         except DockerException as exc:
             logger.exception("Docker connection failed: %s", exc)
             raise
+
+    def _ensure_network(self) -> None:
+        try:
+            self.client.networks.get("automata_net")
+        except NotFound:
+            logger.info("Creando red Docker 'automata_net' para el ecosistema...")
+            self.client.networks.create("automata_net", driver="bridge")
+        except Exception as e:
+            logger.warning("No se pudo verificar/crear la red automata_net: %s", e)
+
+    async def _ensure_template_image(self) -> None:
+        """
+        Garantiza que la imagen base de la UAE exista; si no, la construye.
+        """
+        image_name = "automata/uae-template:latest"
+        try:
+            await asyncio.to_thread(self.client.images.get, image_name)
+            logger.info("Imagen base '%s' encontrada.", image_name)
+        except NotFound:
+            logger.info("Imagen base '%s' no encontrada. Construyendo...", image_name)
+            try:
+                await asyncio.to_thread(
+                    self.client.images.build,
+                    path=".",
+                    dockerfile="Dockerfile.uae",
+                    tag=image_name,
+                    rm=True
+                )
+                logger.info("Imagen base '%s' construida exitosamente.", image_name)
+            except Exception as e:
+                logger.error("Error construyendo imagen base: %s", e)
+                raise
 
     async def _get_orphan_subaccount(self) -> Optional[str]:
         """
@@ -178,6 +211,7 @@ class Supervisor:
                 "UAE_NAME": name,
                 "BYBIT_SUB_UID": sub_uid,
                 "OLLAMA_URL": "http://163.192.114.190:11435",
+                "SUPERVISOR_URL": "http://supervisor:8000",
             })
             # Inyectar otros secretos (GenAI, GitHub, etc.)
             for key in SECRET_KEYS:
@@ -194,7 +228,7 @@ class Supervisor:
                 environment=env,
                 command=command,
                 auto_remove=False,
-                network_mode="bridge",
+                network="automata_net",
                 volumes={"/var/run/docker.sock": {"bind": "/var/run/docker.sock", "mode": "rw"}},
             )
             
@@ -288,6 +322,7 @@ class Supervisor:
 
         @app.on_event("startup")
         async def _startup():
+            await self._ensure_template_image()
             self._poll_task = asyncio.create_task(self._funding_poll_loop())
             self._monitor_task = asyncio.create_task(self.monitor_ecosystem())
 

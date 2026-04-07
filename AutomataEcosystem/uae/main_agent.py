@@ -11,6 +11,7 @@ import os
 import json
 from datetime import datetime
 from typing import Dict, List
+from collections import defaultdict
 
 import httpx
 from rich.console import Console
@@ -32,6 +33,7 @@ SUPERVISOR_URL = os.getenv("SUPERVISOR_URL", "http://supervisor:8000")
 UAE_ID = os.getenv("UAE_NAME", os.getenv("HOSTNAME", "unknown-uae"))
 POLL_INTERVAL = int(os.getenv("HEARTBEAT_INTERVAL", "30"))
 SUB_UID = os.getenv("BYBIT_SUB_UID")
+MAX_WORKERS = int(os.getenv("MAX_WORKERS", "5"))
 
 uae_log_buffer: List[str] = []
 console = Console(theme=Theme({"good": "green", "bad": "red", "info": "cyan"}))
@@ -75,7 +77,7 @@ class UaeAgent:
         self.sectors_db = DiscoveredSectors(store)
         self.memory = LocalMemory()
         self.config: Dict = {}
-        self.active_workers: Dict[str, str] = {} # strategy_name -> container_id
+        self.active_workers: Dict[str, List[str]] = defaultdict(list) # strategy_name -> list[container_id]
         logger.info("UAE Agent initialized: %s | UID: %s", UAE_ID, SUB_UID)
 
     async def bootstrap(self) -> bool:
@@ -103,6 +105,12 @@ class UaeAgent:
         Fetch balance from specialized localized finance manager.
         """
         return await self.exchange.get_balance()
+
+    async def _evaluate_strategy_profit(self, strategy_name: str) -> float:
+        """
+        TODO: Conectar con exchange real.
+        """
+        return 0.0
 
     async def run(self) -> None:
         console.log(f"[info]Iniciando UAE Agent Autónomo: {UAE_ID}[/info]")
@@ -174,6 +182,24 @@ class UaeAgent:
                 # c) Ejecutar si exitoso
                 if success:
                     strategy_name = opp.get("query", "Unknown Strategy")
+
+                    total_workers = sum(len(w_list) for w_list in self.active_workers.values())
+                    if total_workers >= MAX_WORKERS:
+                        continue
+                        
+                    if strategy_name in self.active_workers and len(self.active_workers[strategy_name]) >= 1:
+                        profit = await self._evaluate_strategy_profit(strategy_name)
+                        if profit >= 5.0:
+                            msg = f"[SCALING] Estrategia {strategy_name} es muy rentable (profit: {profit}). Clonando..."
+                            console.log(f"[good]{msg}[/good]")
+                            uae_log_buffer.append(msg)
+                        else:
+                            msg = f"[SCALING] Estrategia {strategy_name} activa pero profit=({profit} < 5.0). Esperando..."
+                            console.log(f"[info]{msg}[/info]")
+                            uae_log_buffer.append(msg)
+                            await asyncio.sleep(POLL_INTERVAL)
+                            continue
+
                     msg = f"[DELEGANDO] Creando agente especialista para: {strategy_name}"
                     console.log(f"[info]{msg}[/info]")
                     uae_log_buffer.append(msg)
@@ -187,7 +213,7 @@ class UaeAgent:
                         code=code, 
                         environment=self.config  # Pasar todos los secretos (Gemini, GitHub, Nano Banana, etc.)
                     )
-                    self.active_workers[strategy_name] = worker_id
+                    self.active_workers[strategy_name].append(worker_id)
                     self.memory.add_entry({"msg": f"Delegado: {strategy_name}", "worker_id": worker_id})
 
             except Exception as exc:
@@ -214,8 +240,15 @@ class UaeAgent:
                     "status": "active",
                     "balances": balances,
                     "logs": logs_to_send,
-                    "workers": list(self.active_workers.keys()) # Enviar lista de agentes especialistas
+                    "workers": [wid for w_list in self.active_workers.values() for wid in w_list] # Enviar lista aplanada
                 }
+                
+                # Garbage Collection simple (simulado)
+                for strat, w_list in list(self.active_workers.items()):
+                    # TODO: Filtrar usando self.claw.is_alive(w) 
+                    # self.active_workers[strat] = [w for w in w_list if alive(w)]
+                    if not self.active_workers[strat]:
+                        del self.active_workers[strat]
                 
                 async with httpx.AsyncClient(timeout=10) as client:
                     await client.post(f"{SUPERVISOR_URL}/api/v1/uae/heartbeat", json=payload)
