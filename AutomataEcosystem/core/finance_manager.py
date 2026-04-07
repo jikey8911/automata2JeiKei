@@ -94,7 +94,7 @@ class ExchangeManager:
             "exchange_name": self.exchange_name,
             "api_key": self.api_key,
             "secret": self.api_secret,
-            "uid": self.master_uid,
+            "uid": self.master_uid if self.exchange_name == "bybit" else None,
             "method": method,
             "args": args or [],
             "kwargs": kwargs or {},
@@ -306,8 +306,12 @@ class ExchangeManager:
         transfer_id = str(uuid.uuid4())
         
         # --- VALIDACIÓN CRÍTICA ---
-        if not sub_uid or str(sub_uid) == str(self.master_uid):
-            error_msg = f"Transferencia abortada: sub_uid ({sub_uid}) es inválido o igual al maestro."
+        if not sub_uid:
+            error_msg = "Transferencia abortada: sub_uid es vacío."
+            logger.error(error_msg)
+            return {"error": error_msg}
+        if str(sub_uid) == str(self.master_uid):
+            error_msg = f"Transferencia abortada: sub_uid ({sub_uid}) es igual al master_uid ({self.master_uid})."
             logger.error(error_msg)
             return {"error": error_msg}
 
