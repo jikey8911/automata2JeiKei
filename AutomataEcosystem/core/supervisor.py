@@ -399,13 +399,47 @@ class Supervisor:
         @app.get("/api/v1/uaes")
         async def api_list_all_uaes():
             """
-            Devuelve la lista completa de UAEs registradas en la base de datos.
+            Devuelve la lista completa de UAEs registradas con sus saldos actuales.
             """
             try:
-                return self.registry.list_all()
+                registry_data = self.registry.list_all()
+                # Enriquecer con saldo en tiempo real
+                enriched = []
+                for entry in registry_data:
+                    sub_uid = entry.get("bybit_subaccount_id")
+                    balance = 0.0
+                    if sub_uid:
+                        balance = await self.exchange.get_subaccount_balance(sub_uid)
+                    
+                    enriched.append({
+                        **entry,
+                        "balance": balance
+                    })
+                return enriched
             except Exception as exc:
-                logger.error("Failed to list UAEs from registry: %s", exc)
+                logger.error("Failed to list and enrich UAEs: %s", exc)
                 raise HTTPException(status_code=500, detail="registry_error")
+
+        @app.post("/api/v1/uae/transfer")
+        async def api_manual_transfer(payload: Dict):
+            """
+            Permite inyectar capital manualmente a una UAE desde la cuenta maestra.
+            """
+            uae_id = payload.get("uae_id")
+            amount = float(payload.get("amount", 0))
+            
+            # Buscar el sub_uid en la base de datos
+            reg_entries = self.registry.list_all()
+            sub_uid = next((r["bybit_subaccount_id"] for r in reg_entries if r["uae_id"] == uae_id), None)
+            
+            if not sub_uid:
+                raise HTTPException(status_code=404, detail="UAE no encontrada o no registrada")
+                
+            res = await self.exchange.distribute_to_uae(uae_id, sub_uid, amount)
+            if "error" in res:
+                raise HTTPException(status_code=400, detail=res["error"])
+            
+            return {"ok": True, "res": res}
 
         @app.post("/api/v1/request_spending")
         async def request_spending(payload: Dict) -> Dict:

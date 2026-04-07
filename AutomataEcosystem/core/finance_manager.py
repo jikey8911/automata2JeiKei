@@ -254,6 +254,31 @@ class ExchangeManager:
             logger.error("Failed to list subaccounts on %s: %s", self.exchange_name, exc)
             return []
 
+    async def get_subaccount_balance(self, sub_uid: str, coin: str = "USDT") -> float:
+        """
+        Consulta el saldo disponible en la subcuenta para una moneda específica (v5).
+        """
+        try:
+            if self.exchange_name == "bybit":
+                # Endpoint V5 Asset: Query Sub Member Balance
+                res = await self._call_ccxt(
+                    "privateGetV5AssetTransferQuerySubMemberBalance",
+                    {
+                        "memberId": str(sub_uid),
+                        "coin": coin,
+                        "accountType": "UNIFIED"
+                    }
+                )
+                # La respuesta suele estar en result.list
+                balance_list = res.get("result", {}).get("list", [])
+                for item in balance_list:
+                    if item.get("coin") == coin:
+                        return float(item.get("transferBalance", 0))
+            return 0.0
+        except Exception as exc:
+            logger.error("Failed to fetch balance for subaccount %s: %s", sub_uid, exc)
+            return 0.0
+
     async def distribute_to_uae(self, uae_id: str, sub_uid: str, amount: float, coin: str = "USDT") -> Dict:
         """
         Realiza una transferencia interna desde la cuenta Maestra a la Subcuenta.
