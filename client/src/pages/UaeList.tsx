@@ -6,7 +6,7 @@ type UaeRegistryEntry = {
   vcc_card_id: string;
   status: string;
   created_at: string;
-  balance?: number;
+  balance?: number; // saldo de la subcuenta (no de la master)
 };
 
 type AvailableSubaccount = {
@@ -55,14 +55,7 @@ export default function UaeList() {
   const openTransferModal = async (uaeId: string, subUid?: string) => {
     setTransferAmount("");
     setModal({ uaeId, subUid, masterUid: undefined });
-    try {
-      const res = await fetch(`${apiBase}/v1/status`);
-      if (res.ok) {
-        const json = await res.json();
-        const bal = json.genesis_balance?.USDT || 0;
-        setMasterBalance(bal);
-      }
-    } catch (_) {}
+    setMasterBalance(0); // ya no mostramos balance maestro aquí
   };
 
   const submitTransfer = async () => {
