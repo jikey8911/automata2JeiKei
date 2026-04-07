@@ -87,6 +87,7 @@ class Supervisor:
         self.sectors = DiscoveredSectors(self.secret_store)
         self.strats = UaeStrategies(self.secret_store)
         self.liquidity_cushion = liquidity_cushion
+        # Por defecto, apuntamos al host Ollama provisto
         self.ollama_url = self.secret_store.get_secret("OLLAMA_URL") or os.getenv("OLLAMA_URL", "http://163.192.114.190:11435")
         self.uae_logs = defaultdict(lambda: deque(maxlen=100))
         self.uae_states = {}
@@ -186,7 +187,8 @@ class Supervisor:
             soul_path.write_text(
                 f"Eres el CEO de {uae_name}. "
                 "Tu trabajo es diseñar agentes y escribir sus archivos de configuración. "
-                "Prioriza Ollama; escala a modelos de pago solo si fallan dos intentos o la tarea es crítica.\n"
+                "Prioriza Ollama (modelo principal: llama3.2:3b, código: deepseek-coder:6.7b); "
+                "escala a modelos de pago solo si fallan dos intentos o la tarea es crítica.\n"
             )
         config_path = workspace / "config.json"
         if not config_path.exists():
@@ -365,6 +367,7 @@ class Supervisor:
                 "UAE_NAME": name,
                 "BYBIT_SUB_UID": sub_uid,
                 "OLLAMA_URL": self.ollama_url,
+                "OLLAMA_MODEL": "llama3.2:3b",
                 "SUPERVISOR_URL": os.getenv("SUPERVISOR_URL", "http://automata_supervisor:8000"),
             })
             for key in SECRET_KEYS:
