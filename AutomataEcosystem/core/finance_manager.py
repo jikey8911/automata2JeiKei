@@ -86,17 +86,19 @@ class ExchangeManager:
 
     async def _remote_call(self, method: str, args: list | None = None, kwargs: dict | None = None) -> Dict:
         """
-        Si CCXT_PROXY_URL está definido, manda la llamada a un ejecutor remoto sin exponer credenciales.
+        Si CCXT_PROXY_URL está definido, manda la llamada a un ejecutor remoto (por ej. PC con Tailscale).
         """
         if not self.ccxt_proxy:
             raise RuntimeError("CCXT proxy no configurado")
-        
         payload = {
+            "exchange_name": self.exchange_name,
+            "api_key": self.api_key,
+            "secret": self.api_secret,
+            "uid": self.master_uid,
             "method": method,
             "args": args or [],
             "kwargs": kwargs or {},
         }
-        
         async with httpx.AsyncClient(timeout=10.0) as client:
             r = await client.post(self.ccxt_proxy.rstrip("/") + "/ejecutar", json=payload)
             r.raise_for_status()
@@ -239,20 +241,19 @@ class ExchangeManager:
 
     async def list_subaccounts(self) -> List[Dict[str, str]]:
         """
-        Obtener lista de todas las subcuentas (sub-members) en el exchange.
-        Retorna lista de {uid, username}.
+        Obtener lista de todas las subcuentas en Bybit V5.
+        Corregido: Endpoint y mapeo de lista 'subMembers'.
         """
         try:
             if self.exchange_name == "bybit":
-                # Opción A (Más compatible): Usar el nombre con guiones bajos que CCXT genera
-                # Si falla, usamos la llamada directa por endpoint
+                # En V5 el método suele ser en singular o sin el V5 explícito en algunas versiones de CCXT
                 try:
                     res = await self._call_ccxt("private_get_v5_user_query_sub_member")
                 except:
-                    # Opción B: Llamada directa al endpoint si el método mapeado no se encuentra
-                    res = await self._call_ccxt("privateGetV5UserQuerySubMember")
+                    res = await self._call_ccxt("privateGetUserQuerySubMember")
 
                 result_data = res.get("result", {})
+                # Bybit V5 devuelve la lista en 'subMembers'
                 sub_list = result_data.get("subMembers", [])
                 
                 return [
@@ -269,11 +270,11 @@ class ExchangeManager:
 
     async def get_subaccount_balance(self, sub_uid: str, coin: str = "USDT") -> float:
         """
-        Consulta el saldo disponible en la subcuenta para una moneda específica (v5).
+        Consulta el saldo disponible en la subcuenta (UTA/UNIFIED) en Bybit V5.
         """
         try:
             if self.exchange_name == "bybit":
-                # Endpoint V5 Asset: Query Sub Member Balance
+                # Intentamos obtener el saldo de la cuenta unificada (UNIFIED)
                 res = await self._call_ccxt(
                     "privateGetV5AssetTransferQuerySubMemberBalance",
                     {
@@ -282,11 +283,14 @@ class ExchangeManager:
                         "accountType": "UNIFIED"
                     }
                 )
-                # La respuesta suele estar en result.list
-                balance_list = res.get("result", {}).get("list", [])
+                
+                result_data = res.get("result", {})
+                balance_list = result_data.get("list", [])
+                
                 for item in balance_list:
                     if item.get("coin") == coin:
-                        return float(item.get("transferBalance", 0))
+                        # 'transferBalance' es el saldo disponible para mover/operar
+                        return float(item.get("transferBalance") or 0.0)
             return 0.0
         except Exception as exc:
             logger.error("Failed to fetch balance for subaccount %s: %s", sub_uid, exc)
@@ -295,28 +299,27 @@ class ExchangeManager:
     async def distribute_to_uae(self, uae_id: str, sub_uid: str, amount: float, coin: str = "USDT") -> Dict:
         """
         Realiza una transferencia interna desde la cuenta Maestra a la Subcuenta.
+        Incluye validación de seguridad e idempotencia.
         """
         transfer_id = str(uuid.uuid4())
         
-        # --- VALIDACIÓN CRÍTICA (Evitar transferencias circulares) ---
+        # --- VALIDACIÓN CRÍTICA ---
         if not sub_uid or str(sub_uid) == str(self.master_uid):
-            error_msg = f"Transferencia abortada: sub_uid ({sub_uid}) es igual al master_uid o inválido."
+            error_msg = f"Transferencia abortada: sub_uid ({sub_uid}) es inválido o igual al maestro."
             logger.error(error_msg)
             return {"error": error_msg}
-        # -------------------------------------------------------------
 
         try:
-            # Uso directo del endpoint de Bybit V5 para transferencia interna (Inter-Transfer)
-            # Esto garantiza idempotencia mediante transferId y compatibilidad con UTA (UNIFIED)
+            # Uso directo del endpoint V5 para máxima precisión
             res = await self._call_ccxt(
                 "privatePostV5AssetTransferInterTransfer", 
                 {
-                    "transferId": transfer_id,      # Idempotencia vía UUID
+                    "transferId": transfer_id,       # Idempotencia
                     "coin": coin,
-                    "amount": str(amount),          # Casting a string para Bybit V5
-                    "fromAccountType": "FUND",      # Origen (Maestra - Fondos)
-                    "toAccountType": "UNIFIED",     # Destino (Subcuenta - UTA)
-                    "toMemberId": str(sub_uid)      # ID de la subcuenta receptora
+                    "amount": str(amount),           # String para evitar problemas de precisión
+                    "fromAccountType": "FUND",       # Billetera de fondos principal
+                    "toAccountType": "UNIFIED",      # Billetera UTA de subcuenta
+                    "toMemberId": str(sub_uid)
                 }
             )
             
