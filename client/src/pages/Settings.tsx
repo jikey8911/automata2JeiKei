@@ -6,7 +6,7 @@ const SECRET_FIELDS = [
   { key: "BYBIT_API_KEY", label: "BYBIT_API_KEY" },
   { key: "BYBIT_API_SECRET", label: "BYBIT_API_SECRET" },
   { key: "BYBIT_MASTER_UID", label: "BYBIT_MASTER_UID" },
-  { key: "EXCHANGE_NAME", label: "EXCHANGE_NAME", type: "select", options: ["binance", "binanceus", "coinbase", "kraken", "okx"] },
+  { key: "EXCHANGE_NAME", label: "EXCHANGE_NAME", type: "select", options: ["binance", "bybit", "okx", "binanceus", "coinbase", "kraken", "okx"] },
   { key: "OLLAMA_URL", label: "OLLAMA_URL" },
   { key: "OPENAI_API_KEY", label: "OPENAI_API_KEY" },
   { key: "GEMINI_API_KEY", label: "GEMINI_API_KEY" },
