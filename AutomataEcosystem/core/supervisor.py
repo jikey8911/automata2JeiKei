@@ -118,12 +118,13 @@ class Supervisor:
         """
         try:
             logger.info("Provisioning UAE '%s' with capital %.2f", name, capital)
-            sub_uid = await self.exchange.create_subaccount()
+            sub_uid = await self.exchange.create_subaccount(name)
             if not sub_uid:
-                raise RuntimeError("Failed to create Bybit sub UID")
+                raise RuntimeError(f"Failed to create Bybit subaccount for {name}")
 
             try:
-                await self.exchange.distribute_to_uae(sub_uid, capital)
+                # Transferir capital real desde la maestra a la subcuenta
+                await self.exchange.distribute_to_uae(name, sub_uid, capital)
                 card = await self.virtual_cards.issue_card(sub_uid, capital)
             except Exception as exc:
                 logger.warning("Funding/card step failed (continuando sin fondos): %s", exc)
@@ -483,12 +484,9 @@ class Supervisor:
                 if not uae:
                     raise HTTPException(status_code=404, detail="UAE not registered")
                 
-                # Fetch relevant secrets
+                # Fetch all relevant secrets for the UAE
                 config = {
                     "sub_uid": uae["bybit_subaccount_id"],
-                    "ollama_url": self.secret_store.get_secret("OLLAMA_URL") or "http://163.192.114.190:11435",
-                    "ccxt_proxy_url": self.secret_store.get_secret("CCXT_PROXY_URL"),
-                    "model": self.secret_store.get_secret("SUPERVISOR_MODEL") or "deepseek-coder:6.7b",
                     "vcc": {
                         "card_id": uae["vcc_card_id"],
                         "number": self.secret_store._fernet.decrypt(uae["vcc_number_enc"]).decode("utf-8"),
@@ -496,6 +494,13 @@ class Supervisor:
                         "exp": self.secret_store._fernet.decrypt(uae["vcc_exp_enc"]).decode("utf-8"),
                     }
                 }
+                
+                # Inyectar todos los SECRET_KEYS generales (GenAI, DevOps, etc.)
+                for key in SECRET_KEYS:
+                    val = self.secret_store.get_secret(key)
+                    if val:
+                        config[key] = val
+
                 return config
             except Exception as e:
                 logger.error("Error retrieving config for %s: %s", uae_id, e)
@@ -521,22 +526,28 @@ class Supervisor:
         return app
 
     async def _handle_heartbeat(self, payload: Dict) -> None:
-        uae_id = payload.get("uae_id")
-        status = payload.get("status")
+        uae_id = payload.get("uae_id", "unknown")
+        status = payload.get("status", "unknown")
         balances = payload.get("balances", {})
-        new_logs = payload.get("logs", [])
+        logs = payload.get("logs", [])
+        workers = payload.get("workers", []) # Nueva lista de agentes especialistas
+
+        # Update local state
+        self.uae_logs[uae_id].extend(logs)
+        if logs:
+            self.new_log_event.set()
+
+        # Guardar estado extendido incluyendo workers
+        self.uae_states[uae_id] = {
+            "status": status,
+            "balances": balances,
+            "last_seen": asyncio.get_event_loop().time(),
+            "workers": workers
+        }
         
-        logger.info(
-            "Heartbeat received | uae_id=%s | status=%s | balances=%s | logs=%d",
-            uae_id,
-            status,
-            balances,
-            len(new_logs)
-        )
-        
-        if uae_id and new_logs:
+        if uae_id and logs:
             timestamp = datetime.now().strftime("%H:%M:%S")
-            for msg in new_logs:
+            for msg in logs:
                 formatted_msg = f"[{timestamp}] {msg}"
                 self.uae_logs[uae_id].append(formatted_msg)
                 # Trigger analysis

@@ -74,6 +74,8 @@ class UaeAgent:
         self.claw = OpenClawManager()
         self.sectors_db = DiscoveredSectors(store)
         self.memory = LocalMemory()
+        self.config: Dict = {}
+        self.active_workers: Dict[str, str] = {} # strategy_name -> container_id
         logger.info("UAE Agent initialized: %s | UID: %s", UAE_ID, SUB_UID)
 
     async def bootstrap(self) -> bool:
@@ -171,41 +173,22 @@ class UaeAgent:
 
                 # c) Ejecutar si exitoso
                 if success:
-                    msg = f"[EJECUTANDO] Solución para {opp.get('query')}"
+                    strategy_name = opp.get("query", "Unknown Strategy")
+                    msg = f"[DELEGANDO] Creando agente especialista para: {strategy_name}"
                     console.log(f"[info]{msg}[/info]")
                     uae_log_buffer.append(msg)
                     
                     # Registrar en base de datos local
-                    self.sectors_db.upsert(sector_name=opp.get("query", "Unknown"), uae_id=UAE_ID, status="prototyping")
+                    self.sectors_db.upsert(sector_name=strategy_name, uae_id=UAE_ID, status="delegated")
                     
-                    # Ejecutar en OpenClaw
-                    result = await self.claw.execute(code)
-                    
-                    # d) Procesar resultado (ej: recolectar ganancias)
-                    profit = result.get("profit", 0)
-                    if profit > 0:
-                        msg = f"[GANANCIA] Sector {opp.get('query')}: ${profit}"
-                        console.log(f"[good]{msg}[/good]")
-                        uae_log_buffer.append(msg)
-                        self.memory.add_entry({"msg": msg, "profit": profit})
-                        
-                        # Reportar estrategia exitosa a la Inteligencia Colectiva
-                        async with httpx.AsyncClient() as client:
-                            await client.post(
-                                f"{SUPERVISOR_URL}/api/v1/strategies/report",
-                                json={
-                                    "uae_id": UAE_ID,
-                                    "sector": opp.get("query"),
-                                    "idea": task_prompt,
-                                    "code": code,
-                                    "status": "PROFITABLE",
-                                    "profit": profit
-                                }
-                            )
-                        self.sectors_db.upsert(sector_name=opp.get("query", "Unknown"), uae_id=UAE_ID, status="profitable")
-                    else:
-                        self.memory.add_entry({"msg": f"Fallo en {opp.get('query')}", "profit": 0})
-                        self.sectors_db.upsert(sector_name=opp.get("query", "Unknown"), uae_id=UAE_ID, status="failed")
+                    # Lanzar Trabajador en OpenClaw (No bloqueante)
+                    worker_id = self.claw.spawn_strategy_agent(
+                        strategy_id=strategy_name.replace(" ", "_"), 
+                        code=code, 
+                        environment=self.config  # Pasar todos los secretos (Gemini, GitHub, Nano Banana, etc.)
+                    )
+                    self.active_workers[strategy_name] = worker_id
+                    self.memory.add_entry({"msg": f"Delegado: {strategy_name}", "worker_id": worker_id})
 
             except Exception as exc:
                 logger.error("Error in UAE agent loop: %s", exc)
@@ -231,6 +214,7 @@ class UaeAgent:
                     "status": "active",
                     "balances": balances,
                     "logs": logs_to_send,
+                    "workers": list(self.active_workers.keys()) # Enviar lista de agentes especialistas
                 }
                 
                 async with httpx.AsyncClient(timeout=10) as client:

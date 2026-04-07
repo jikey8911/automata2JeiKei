@@ -178,27 +178,52 @@ class ExchangeManager:
             logger.warning("%s trading balance failed: %s", self.exchange_name, exc)
             return 0.0
 
-    async def create_subaccount(self) -> Optional[str]:
+    async def create_subaccount(self, name: str) -> Optional[str]:
         """
-        La mayoría de exchanges en ccxt no crean subcuentas vía API pública.
-        Devolvemos master_uid o None; Supervisor usará fallback.
+        Intentar crear subcuenta en Bybit usando v5 create_sub_account.
         """
-        fallback = self.master_uid or os.getenv("BYBIT_FALLBACK_SUB_UID")
-        if fallback:
-            logger.info("Using fallback sub UID=%s", fallback)
-            return fallback
-        logger.warning("create_subaccount no disponible en %s; devolverá None", self.exchange_name)
-        return None
+        try:
+            if self.exchange_name == "bybit":
+                # Bybit expects subMemberName (max 30 chars), memberType=1 (Normal)
+                res = await self._call_ccxt("create_sub_account", memberType=1, subMemberName=name[:30])
+                sub_uid = res.get("subMemberId")
+                if sub_uid:
+                    logger.info("Successfully created Bybit subaccount: %s for UAE %s", sub_uid, name)
+                    return str(sub_uid)
+            
+            # Fallback
+            fallback = self.master_uid or os.getenv("BYBIT_FALLBACK_SUB_UID")
+            if fallback:
+                logger.info("Using fallback sub UID=%s", fallback)
+                return fallback
+            return None
+        except Exception as exc:
+            logger.warning("create_subaccount failed on %s: %s", self.exchange_name, exc)
+            return None
 
-    async def distribute_to_uae(self, uae_id: Optional[str], amount: float, coin: str = "USDT") -> Dict:
+    async def distribute_to_uae(self, uae_id: str, sub_uid: str, amount: float, coin: str = "USDT") -> Dict:
         """
-        CCXT no expone transferencias internas universales de forma homogénea.
-        No-op con auditoría de intento.
+        Realiza una transferencia interna desde la cuenta Maestra a la Subcuenta.
         """
         transfer_id = str(uuid.uuid4())
-        logger.warning("distribute_to_uae no implementado para %s; amount=%.2f", self.exchange_name, amount)
-        await self._log_transfer("to_uae_failed", uae_id or "UNKNOWN", amount, transfer_id, {"error": "not_implemented"})
-        return {}
+        try:
+            # Bybit Inter-account transfer (SPOT to SPOT)
+            # Para Bybit v5, se usa transfer(coin, amount, fromAccount, toAccount, params={'toMemberId': sub_uid})
+            res = await self._call_ccxt(
+                "transfer", 
+                coin, 
+                amount, 
+                "SPOT", 
+                "SPOT", 
+                params={"toMemberId": sub_uid}
+            )
+            await self._log_transfer("to_uae_success", uae_id, amount, transfer_id, res)
+            logger.info("Transferencia exitosa a UAE %s (%s): %.2f %s", uae_id, sub_uid, amount, coin)
+            return res
+        except Exception as exc:
+            logger.error("distribute_to_uae failed: %s", exc)
+            await self._log_transfer("to_uae_failed", uae_id, amount, transfer_id, {"error": str(exc)})
+            return {"error": str(exc)}
 
     async def collect_taxes(self, uae_id: str, amount: float, coin: str = "USDT") -> Dict:
         """

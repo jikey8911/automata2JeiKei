@@ -54,7 +54,7 @@ class OpenClawManager:
                 name=name,
                 detach=True,
                 environment=env,
-                platform=self.target_platform,
+                # platform=self.target_platform, # removed for stability in local dev
                 command=command,
                 auto_remove=False,
                 network_mode="bridge",
@@ -63,6 +63,43 @@ class OpenClawManager:
             return container.id
         except (APIError, DockerException) as exc:
             logger.exception("Failed to spawn worker '%s': %s", name, exc)
+            raise
+
+    def spawn_strategy_agent(self, strategy_id: str, code: str, environment: dict) -> str:
+        """
+        Spawns a specialized agent (worker) to run a specific strategy code.
+        It uses a base python image and injects the code as a command.
+        """
+        try:
+            name = f"worker-{strategy_id[:8]}"
+            # We wrap the code to ensure it has the necessary imports and error handling
+            full_script = (
+                "import os, sys, json, asyncio, logging\n"
+                "logging.basicConfig(level=logging.INFO)\n"
+                "logger = logging.getLogger('worker')\n"
+                "async def main():\n"
+                "    try:\n"
+                "        logger.info('Worker starting strategy...')\n"
+                "        # --- START CORE STRATEGY ---\n"
+                f"{code}\n"
+                "        # --- END CORE STRATEGY ---\n"
+                "    except Exception as e:\n"
+                "        logger.error(f'Worker failed: {e}')\n\n"
+                "if __name__ == '__main__':\n"
+                "    asyncio.run(main())"
+            )
+            
+            # Command to run the script via python -c
+            command = ["python", "-c", full_script]
+            
+            return self.spawn_worker(
+                name=name,
+                image="python:3.11-slim",
+                environment=environment,
+                command=command
+            )
+        except Exception as exc:
+            logger.exception("Failed to spawn strategy agent %s: %s", strategy_id, exc)
             raise
 
     def clone_worker(self, source_container_id: str, new_name: str) -> str:

@@ -36,8 +36,9 @@ class BrainAgent:
         """
         Update brain with dynamic config from bootstrap.
         """
-        self.ollama_url = config.get("ollama_url", self.ollama_url)
-        logger.info("BrainAgent configuration updated | Ollama: %s", self.ollama_url)
+        self.config = config
+        self.ollama_url = config.get("OLLAMA_URL", self.ollama_url)
+        logger.info("BrainAgent configuration updated | Ollama: %s | Keys: %s", self.ollama_url, list(config.keys()))
 
     async def generate_with_ollama(self, prompt: str, model: str = "deepseek-coder:6.7b") -> str:
         payload = {"model": model, "prompt": prompt, "stream": False}
