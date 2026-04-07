@@ -174,33 +174,53 @@ export default function UaeList() {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="flex items-center gap-2 min-w-[200px]">
+                      <div className="flex items-center gap-2 min-w-[240px]">
                         {editingUae === uae.uae_id ? (
-                          <div className="flex items-center gap-2 w-full">
-                            <select 
-                              className="bg-slate-900 border border-white/20 rounded px-2 py-1 text-xs w-full outline-none focus:border-blue-500"
-                              defaultValue={uae.bybit_subaccount_id}
-                              onChange={(e) => updateSubaccount(uae.uae_id, e.target.value)}
-                            >
-                              <option value={uae.bybit_subaccount_id}>{uae.bybit_subaccount_id} (Actual)</option>
-                              {availableSubs.map(s => (
-                                <option key={s.uid} value={s.uid}>{s.username} ({s.uid})</option>
-                              ))}
-                            </select>
-                            <button onClick={() => setEditingUae(null)} className="text-slate-500 hover:text-white">✕</button>
+                          <div className="flex flex-col gap-1 w-full animate-in fade-in slide-in-from-top-1 duration-300">
+                            <div className="flex items-center gap-2">
+                              <select 
+                                className="bg-slate-900 border border-white/20 rounded px-2 py-1.5 text-xs flex-1 outline-none focus:border-emerald-500 transition-colors"
+                                defaultValue={uae.bybit_subaccount_id}
+                                onChange={(e) => updateSubaccount(uae.uae_id, e.target.value)}
+                              >
+                                <option value={uae.bybit_subaccount_id}>{uae.bybit_subaccount_id} (Actual)</option>
+                                {availableSubs.map(s => (
+                                  <option key={s.uid} value={s.uid}>{s.username} ({s.uid})</option>
+                                ))}
+                                <option value="manual">✎ Escribir UID manualmente...</option>
+                              </select>
+                              <button 
+                                onClick={() => setEditingUae(null)} 
+                                className="p-1.5 text-slate-500 hover:text-white bg-white/5 rounded-md"
+                              >✕</button>
+                            </div>
+                            
+                            {/* Input manual si se solicita */}
+                            <div className="flex gap-1 mt-1">
+                              <input 
+                                type="text"
+                                placeholder="Nuevo UID (e.g. 1928374)"
+                                className="bg-emerald-500/10 border border-emerald-500/30 rounded px-2 py-1 text-xs flex-1 outline-none text-emerald-400 placeholder:text-emerald-900"
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    updateSubaccount(uae.uae_id, (e.target as HTMLInputElement).value);
+                                  }
+                                }}
+                              />
+                            </div>
                           </div>
                         ) : (
                           <>
                             <span className="text-xs font-mono text-slate-400">
-                              {uae.bybit_subaccount_id}
+                              {uae.bybit_subaccount_id || "SIN ASIGNAR"}
                             </span>
                             <button 
                               onClick={() => {
                                 setEditingUae(uae.uae_id);
                                 loadAvailable();
                               }}
-                              className="p-1 text-blue-500 hover:text-blue-400 opacity-0 group-hover:opacity-100 transition-all border border-blue-500/20 rounded"
-                              title="Cambiar Subcuenta"
+                              className="p-1 text-emerald-500 hover:text-emerald-400 opacity-0 group-hover:opacity-100 transition-all border border-emerald-500/20 rounded-md bg-emerald-500/5"
+                              title="Editar Asignación"
                             >
                               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                             </button>

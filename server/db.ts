@@ -89,4 +89,19 @@ export async function getUserByOpenId(openId: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
-// TODO: add feature queries here as your schema grows.
+export async function updateUserSubaccount(userId: number, subaccountUid: string) {
+  const db = await getDb();
+  if (!db) {
+    console.warn("[Database] Cannot update subaccount: database not available");
+    return;
+  }
+
+  try {
+    await db.update(users)
+      .set({ subaccountUid })
+      .where(eq(users.id, userId));
+  } catch (error) {
+    console.error("[Database] Failed to update user subaccount:", error);
+    throw error;
+  }
+}

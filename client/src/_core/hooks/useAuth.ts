@@ -76,9 +76,20 @@ export function useAuth(options?: UseAuthOptions) {
     state.user,
   ]);
 
+  const updateSubaccountMutation = trpc.auth.updateSubaccount.useMutation({
+    onSuccess: () => {
+      utils.auth.me.invalidate();
+    },
+  });
+
+  const updateSubaccount = useCallback(async (subaccountUid: string) => {
+    await updateSubaccountMutation.mutateAsync({ subaccountUid });
+  }, [updateSubaccountMutation]);
+
   return {
     ...state,
     refresh: () => meQuery.refetch(),
     logout,
+    updateSubaccount,
   };
 }

@@ -20,6 +20,8 @@ export const users = mysqlTable("users", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
+  /** The current active Bybit Subaccount UID for this user's session focus. */
+  subaccountUid: varchar("subaccountUid", { length: 64 }),
 });
 
 export type User = typeof users.$inferSelect;
