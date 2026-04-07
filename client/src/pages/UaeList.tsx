@@ -20,6 +20,9 @@ export default function UaeList() {
   const [availableSubs, setAvailableSubs] = useState<AvailableSubaccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingUae, setEditingUae] = useState<string | null>(null);
+  const [modal, setModal] = useState<{uaeId: string; masterUid?: string; subUid?: string; balance?: number} | null>(null);
+  const [transferAmount, setTransferAmount] = useState<string>("");
+  const [masterBalance, setMasterBalance] = useState<number>(0);
 
   const load = async () => {
     try {
@@ -49,31 +52,41 @@ export default function UaeList() {
     }
   };
 
-  const handleTransfer = async (uaeId: string) => {
-    const amountStr = window.prompt("Cantidad a transferir (USDT):", "10.0");
-    if (!amountStr) return;
-    
-    const amount = parseFloat(amountStr);
+  const openTransferModal = async (uaeId: string, subUid?: string) => {
+    setTransferAmount("");
+    setModal({ uaeId, subUid, masterUid: undefined });
+    try {
+      const res = await fetch(`${apiBase}/v1/status`);
+      if (res.ok) {
+        const json = await res.json();
+        const bal = json.genesis_balance?.USDT || 0;
+        setMasterBalance(bal);
+      }
+    } catch (_) {}
+  };
+
+  const submitTransfer = async () => {
+    if (!modal) return;
+    const amount = parseFloat(transferAmount);
     if (isNaN(amount) || amount <= 0) {
       alert("Cantidad inválida");
       return;
     }
-
     try {
       const res = await fetch(`${apiBase}/v1/uae/transfer`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ uae_id: uaeId, amount })
+        body: JSON.stringify({ uae_id: modal.uaeId, amount })
       });
-      
       if (res.ok) {
         alert(`Transferencia de ${amount} USDT exitosa`);
+        setModal(null);
         load();
       } else {
         const err = await res.json();
         alert(`Error: ${err.detail || "Fallo en la transferencia"}`);
       }
-    } catch (e) {
+    } catch (_) {
       alert("Error de conexión");
     }
   };
@@ -245,7 +258,7 @@ export default function UaeList() {
                     <td className="px-6 py-4 text-right">
                       <div className="flex justify-end items-center gap-3">
                         <button 
-                          onClick={() => handleTransfer(uae.uae_id)}
+                          onClick={() => openTransferModal(uae.uae_id, uae.bybit_subaccount_id)}
                           className="px-3 py-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold rounded shadow-lg shadow-emerald-500/20 transition-all active:scale-95"
                         >
                           FONDER
@@ -266,6 +279,42 @@ export default function UaeList() {
           </div>
         )}
       </div>
+    </div>
+
+      {modal && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+          <div className="bg-slate-900 border border-white/10 rounded-xl p-6 w-full max-width[480px] max-w-md space-y-4 shadow-xl shadow-emerald-500/10">
+            <div className="flex justify-between items-center">
+              <div>
+                <h2 className="text-lg font-semibold text-white">Transferir fondos</h2>
+                <p className="text-xs text-slate-400">UAE: {modal.uaeId}</p>
+              </div>
+              <button onClick={() => setModal(null)} className="text-slate-400 hover:text-white">✕</button>
+            </div>
+            <div className="text-sm text-slate-300 space-y-1">
+              <div>Balance master disponible: <span className="font-mono text-emerald-400">{masterBalance.toFixed(2)} USDT</span></div>
+              <div>Sub UID destino: <span className="font-mono text-blue-300">{modal.subUid || "N/D"}</span></div>
+              <div>Master UID (env): <span className="font-mono text-slate-400">{process.env.BYBIT_MASTER_UID || "config secret"}</span></div>
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs text-slate-400">Monto (USDT)</label>
+              <input 
+                type="number"
+                min="0"
+                step="0.01"
+                value={transferAmount}
+                onChange={(e) => setTransferAmount(e.target.value)}
+                className="w-full bg-slate-800 border border-white/10 rounded px-3 py-2 text-sm text-white focus:border-emerald-500 outline-none"
+                placeholder="Ej: 10.0"
+              />
+            </div>
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setModal(null)} className="px-3 py-2 rounded border border-white/10 text-slate-300">Cancelar</button>
+              <button onClick={submitTransfer} className="px-3 py-2 rounded bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold">Transferir</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
