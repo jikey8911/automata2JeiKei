@@ -38,8 +38,8 @@ class ExchangeManager:
         master_uid: Optional[str] = None,
     ) -> None:
         self.store = secret_store or EncryptedSecretStore()
-        self.exchange_name = (self.store.get_secret("EXCHANGE_NAME") or os.getenv("EXCHANGE_NAME") or "binance").lower()
-        self.ccxt_proxy = self.store.get_secret("CCXT_PROXY_URL") or os.getenv("CCXT_PROXY_URL")
+        self.exchange_name = (self.store.get_secret("EXCHANGE_NAME") or os.getenv("EXCHANGE_NAME") or "bybit").lower()
+        self.ccxt_proxy = self.store.get_secret("CCXT_PROXY_URL") or os.getenv("CCXT_PROXY_URL") or "http://100.90.90.65:8000"
         # Buscar claves específicas del exchange, si no, caer en BYBIT_*
         upper = self.exchange_name.replace(" ", "").replace("-", "").upper()
         self.api_key = (
@@ -118,6 +118,18 @@ class ExchangeManager:
     async def _call(self, func, **kwargs):
         return await asyncio.to_thread(func, **kwargs)
 
+    async def _call_ccxt(self, method_name: str, *args, **kwargs) -> Dict:
+        """Execute a CCXT method either locally or via remote proxy.
+        If CCXT_PROXY_URL is configured, the call is forwarded to the remote executor.
+        Otherwise, it uses the local ccxt client.
+        """
+        if self.ccxt_proxy:
+            # Remote execution expects args as a list
+            return await self._remote_call(method_name, list(args))
+        else:
+            method = getattr(self.client, method_name)
+            return await self._call(method, *args, **kwargs)
+
     async def _log_transfer(self, direction: str, uae_id: str, amount: float, transfer_id: str, response: Dict) -> None:
         try:
             conn = sqlite3.connect(DEFAULT_DB_PATH, check_same_thread=False)
@@ -135,10 +147,7 @@ class ExchangeManager:
         Spot/funding balances (USDT/USDC) usando fetch_balance.
         """
         try:
-            if self.ccxt_proxy:
-                bal = await self._remote_call("fetch_balance")
-            else:
-                bal = await self._call(self.client.fetch_balance)
+            bal = await self._call_ccxt("fetch_balance")
             total = bal.get("total", {}) if isinstance(bal, dict) else {}
             return {
                 "USDT": float(total.get("USDT", 0.0) or 0.0),
@@ -150,10 +159,7 @@ class ExchangeManager:
 
     async def get_trading_balance(self, coin: str = "USDT") -> float:
         try:
-            if self.ccxt_proxy:
-                bal = await self._remote_call("fetch_balance")
-            else:
-                bal = await self._call(self.client.fetch_balance)
+            bal = await self._call_ccxt("fetch_balance")
             return float(bal.get("total", {}).get(coin, 0.0) or 0.0)
         except Exception as exc:
             logger.warning("%s trading balance failed: %s", self.exchange_name, exc)
