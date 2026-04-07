@@ -10,7 +10,9 @@ from typing import Dict, Optional
 import asyncio
 import uuid
 import os
-from fastapi import FastAPI, HTTPException
+from datetime import datetime
+from collections import defaultdict, deque
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse
 import uvicorn
@@ -80,6 +82,8 @@ class Supervisor:
         self.liquidity_cushion = liquidity_cushion
         self._poll_task: Optional[asyncio.Task] = None
         self._monitor_task: Optional[asyncio.Task] = None
+        self.uae_logs: Dict[str, deque] = defaultdict(lambda: deque(maxlen=20))
+        self.new_log_event = asyncio.Event()
         self.app = self._build_api()
 
     def _connect_docker(self) -> docker.DockerClient:
@@ -397,18 +401,72 @@ class Supervisor:
                 logger.warning("logs endpoint failed: %s", exc)
                 return PlainTextResponse("Logs no disponibles", status_code=500)
 
+        @app.get("/api/v1/uae/logs")
+        async def get_uae_logs():
+            return {uid: list(logs) for uid, logs in self.uae_logs.items()}
+
+        @app.websocket("/ws/v1/uae/logs")
+        async def ws_uae_logs(websocket: WebSocket):
+            await websocket.accept()
+            try:
+                # Enviar estado inicial
+                initial_payload = {uid: list(logs) for uid, logs in self.uae_logs.items()}
+                await websocket.send_json({"logs": initial_payload})
+                
+                while True:
+                    await self.new_log_event.wait()
+                    payload = {uid: list(logs) for uid, logs in self.uae_logs.items()}
+                    await websocket.send_json({"logs": payload})
+                    self.new_log_event.clear()
+            except WebSocketDisconnect:
+                logger.info("WS client disconnected")
+            except Exception as e:
+                logger.error(f"WS error: {e}")
+
+        @app.post("/api/v1/uae/mitosis/{uae_id}")
+        async def api_mitosis(uae_id: str):
+            try:
+                # Buscar el contenedor original para obtener su imagen y config
+                container = await asyncio.to_thread(self.client.containers.get, uae_id)
+                image = container.image.tags[0] if container.image.tags else "automata/uae-template:latest"
+                new_name = f"UAE-Clone-{uuid.uuid4().hex[:4]}"
+                # Simplificación: usamos capital estándar para el clon
+                await self.create_uae(name=new_name, image=image, capital=2.0)
+                return {"ok": True, "new_uae": new_name}
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+
+        @app.delete("/api/v1/uae/kill/{uae_id}")
+        async def api_kill(uae_id: str):
+            try:
+                # Intentar buscar por nombre o ID directamente en docker
+                await self.terminate_uae(uae_id)
+                return {"ok": True}
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+
         return app
 
     async def _handle_heartbeat(self, payload: Dict) -> None:
         uae_id = payload.get("uae_id")
         status = payload.get("status")
         balances = payload.get("balances", {})
+        new_logs = payload.get("logs", [])
+        
         logger.info(
-            "Heartbeat received | uae_id=%s | status=%s | balances=%s",
+            "Heartbeat received | uae_id=%s | status=%s | balances=%s | logs=%d",
             uae_id,
             status,
             balances,
+            len(new_logs)
         )
+        
+        if uae_id and new_logs:
+            timestamp = datetime.now().strftime("%H:%M:%S")
+            for msg in new_logs:
+                self.uae_logs[uae_id].append(f"[{timestamp}] {msg}")
+            self.new_log_event.set()
+
         # After each heartbeat, enforce liquidity rule
         await self.exchange.rebalance_to_funding(cushion=self.liquidity_cushion)
 

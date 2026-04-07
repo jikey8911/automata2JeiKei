@@ -19,8 +19,9 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [showContainers, setShowContainers] = useState(false);
   const apiBase = useMemo(() => import.meta.env.VITE_API_URL || "/api", []);
+  const wsBase = useMemo(() => apiBase.replace("http", "ws"), [apiBase]);
   const [supervisorLogs, setSupervisorLogs] = useState<string[]>([]);
-  const [uaeLogs, setUaeLogs] = useState<string[]>([]);
+  const [uaeLogs, setUaeLogs] = useState<Record<string, string[]>>({});
   const [health, setHealth] = useState<HealthPayload | null>(null);
 
   const loadStatus = async () => {
@@ -74,6 +75,65 @@ export default function Home() {
     const id = setInterval(fetchLogs, 10000);
     return () => clearInterval(id);
   }, [apiBase]);
+
+  useEffect(() => {
+    let socket: WebSocket | null = null;
+    let pollId: any = null;
+
+    const connectWS = () => {
+      try {
+        socket = new WebSocket(`${wsBase}/v1/uae/logs`);
+        socket.onmessage = (event) => {
+          const data = JSON.parse(event.data);
+          if (data.logs) setUaeLogs(data.logs);
+        };
+        socket.onerror = () => {
+          console.warn("WS error, falling back to polling");
+          startPolling();
+        };
+        socket.onclose = () => {
+          if (!pollId) setTimeout(connectWS, 5000);
+        };
+      } catch (e) {
+        startPolling();
+      }
+    };
+
+    const startPolling = async () => {
+      if (pollId) return;
+      const poll = async () => {
+        try {
+          const res = await fetch(`${apiBase}/v1/uae/logs`);
+          const data = await res.json();
+          setUaeLogs(data);
+        } catch (e) {}
+      };
+      poll();
+      pollId = setInterval(poll, 5000);
+    };
+
+    connectWS();
+
+    return () => {
+      socket?.close();
+      if (pollId) clearInterval(pollId);
+    };
+  }, [apiBase, wsBase]);
+
+  const handleMitosis = async (id: string) => {
+    try {
+      await fetch(`${apiBase}/v1/uae/mitosis/${id}`, { method: "POST" });
+      loadStatus();
+    } catch (e) { alert("Mitosis fallida"); }
+  };
+
+  const handleKill = async (id: string) => {
+    if (!confirm("¿Seguro que deseas matar esta UAE?")) return;
+    try {
+      await fetch(`${apiBase}/v1/uae/kill/${id}`, { method: "DELETE" });
+      loadStatus();
+    } catch (e) { alert("Error al matar UAE"); }
+  };
 
   const totalUSDT = data.genesis_balance["USDT"] || 0;
   const totalUSDC = data.genesis_balance["USDC"] || 0;
@@ -132,11 +192,27 @@ export default function Home() {
               </button>
             </div>
             {showContainers && (
-              <ul className="mt-3 space-y-1 text-sm text-slate-200">
+              <ul className="mt-3 space-y-2 text-sm text-slate-200">
                 {data.containers.map((c) => (
-                  <li key={c.id} className="flex justify-between">
-                    <span>{c.name}</span>
-                    <span className="text-emerald-400 uppercase text-xs">{c.status}</span>
+                  <li key={c.id} className="flex flex-col gap-1 border-b border-white/5 pb-2">
+                    <div className="flex justify-between items-center">
+                      <span className="font-medium text-blue-300">{c.name}</span>
+                      <span className="text-emerald-400 uppercase text-xs font-mono">{c.status}</span>
+                    </div>
+                    <div className="flex gap-2 mt-1">
+                      <button
+                        onClick={() => handleMitosis(c.name)}
+                        className="text-[10px] bg-blue-500/20 hover:bg-blue-500/40 text-blue-300 px-2 py-0.5 rounded border border-blue-500/30 transition-colors"
+                      >
+                        MITOSIS
+                      </button>
+                      <button
+                        onClick={() => handleKill(c.name)}
+                        className="text-[10px] bg-red-500/20 hover:bg-red-500/40 text-red-300 px-2 py-0.5 rounded border border-red-500/30 transition-colors"
+                      >
+                        KILL
+                      </button>
+                    </div>
                   </li>
                 ))}
                 {data.containers.length === 0 && <li className="text-slate-500">Sin UAEs (monitor lanzará UAE-Alpha)</li>}
@@ -174,19 +250,29 @@ export default function Home() {
             </div>
           </NeoPanel>
 
-          <NeoPanel className="border-white/10">
+          <NeoPanel className="border-white/10 flex flex-col">
             <p className="text-xs uppercase text-slate-400 mb-3">Logs UAEs / actividad</p>
-            <div className="space-y-1 text-xs text-slate-200 max-h-64 overflow-y-auto">
-              {data.containers.map((c) => (
-                <div key={c.id} className="border-b border-white/5 pb-2">
-                  <div className="flex justify-between text-sm">
-                    <span>{c.name}</span>
-                    <span className="text-emerald-400 uppercase">{c.status}</span>
+            <div className="space-y-4 text-xs text-slate-200 max-h-80 overflow-y-auto pr-2 custom-scrollbar">
+              {Object.entries(uaeLogs).length > 0 ? (
+                Object.entries(uaeLogs).map(([uid, logs]) => (
+                  <div key={uid} className="bg-white/5 rounded p-2 border border-white/5">
+                    <div className="flex justify-between items-center mb-2 border-b border-white/10 pb-1">
+                      <span className="text-blue-400 font-bold font-mono">{uid}</span>
+                      <span className="text-[10px] text-slate-500">Últimos {logs.length} logs</span>
+                    </div>
+                    <div className="font-mono text-[10px] space-y-0.5">
+                      {logs.map((log, i) => (
+                        <div key={i} className="leading-tight break-all opacity-90 hover:opacity-100">{log}</div>
+                      ))}
+                    </div>
                   </div>
-                  <div className="text-slate-400">Última actividad: heartbeat reciente</div>
+                ))
+              ) : (
+                <div className="flex flex-col items-center justify-center py-10 text-slate-600 italic">
+                  <Activity className="h-8 w-8 mb-2 opacity-20" />
+                  <p>Esperando actividad de UAEs...</p>
                 </div>
-              ))}
-              {data.containers.length === 0 && <div className="text-slate-500">Sin UAEs</div>}
+              )}
             </div>
           </NeoPanel>
         </div>

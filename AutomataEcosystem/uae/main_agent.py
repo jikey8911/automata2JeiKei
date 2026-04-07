@@ -28,9 +28,10 @@ logger = logging.getLogger("uae.main_agent")
 
 SUPERVISOR_URL = os.getenv("SUPERVISOR_URL", "http://supervisor:8000")
 UAE_ID = os.getenv("UAE_NAME", os.getenv("HOSTNAME", "unknown-uae"))
-POLL_INTERVAL = int(os.getenv("HEARTBEAT_INTERVAL", "60"))
+POLL_INTERVAL = int(os.getenv("HEARTBEAT_INTERVAL", "30"))
 SUB_UID = os.getenv("BYBIT_SUB_UID")
 
+uae_log_buffer = []  # Buffer temporal de logs para enviar al supervisor
 console = Console(theme=Theme({"good": "green", "bad": "red", "info": "cyan"}))
 
 
@@ -84,15 +85,22 @@ async def main_loop() -> None:
         # a) Buscar oportunidad
         opp = research.find_opportunity()
         task_prompt = f"Sector: {opp.get('sector')} | Query: {opp.get('query')} | Lead: {opp.get('lead')}"
-        console.log(f"[cyan][BUSCANDO][/cyan] {task_prompt}")
+        msg = f"[BUSCANDO] {task_prompt}"
+        console.log(f"[cyan]{msg}[/cyan]")
+        uae_log_buffer.append(msg)
 
         # Filtro de seguridad LLM
         safe = await brain.check_safety(opp)
         if not safe:
-            console.log(f"[bad][SEGURIDAD: ❌][/bad] {task_prompt}")
+            msg = f"SEGURIDAD: ❌ {task_prompt}"
+            console.log(f"[bad]{msg}[/bad]")
+            uae_log_buffer.append(msg)
             await asyncio.sleep(POLL_INTERVAL)
             continue
-        console.log(f"[good][SEGURIDAD: ✅][/good] {task_prompt}")
+        
+        msg = f"SEGURIDAD: ✅ {task_prompt}"
+        console.log(f"[good]{msg}[/good]")
+        uae_log_buffer.append(msg)
 
         # Análisis de factibilidad
         feasibility = await brain.feasibility_analysis(opp)
@@ -155,11 +163,17 @@ async def main_loop() -> None:
         else:
             console.log("[bad]No se pudo resolver localmente; código incompleto[/bad]")
 
-        # Heartbeat con balances
+        # Heartbeat con balances y logs
         balances = await fetch_balances(client)
-        payload = {"uae_id": UAE_ID, "status": "alive", "balances": balances}
-        console.log(f"[info]Heartbeat {payload}[/info]")
+        payload = {
+            "uae_id": UAE_ID, 
+            "status": "alive", 
+            "balances": balances,
+            "logs": list(uae_log_buffer)
+        }
+        console.log(f"[info]Heartbeat {UAE_ID} | logs: {len(uae_log_buffer)}[/info]")
         await post_heartbeat(payload)
+        uae_log_buffer.clear() # Limpiar buffer tras envío exitoso
 
         # Monitoreo de prototipo
         if prototype_tracker:
