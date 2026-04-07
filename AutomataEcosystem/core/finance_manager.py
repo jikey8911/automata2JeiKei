@@ -248,9 +248,11 @@ class ExchangeManager:
             if self.exchange_name == "bybit":
                 # En V5 el método suele ser en singular o sin el V5 explícito en algunas versiones de CCXT
                 try:
-                    res = await self._call_ccxt("private_get_v5_user_query_sub_member")
-                except:
-                    res = await self._call_ccxt("privateGetUserQuerySubMember")
+                    # En V5, el método correcto en CCXT es en plural
+                    res = await self._call_ccxt("privateGetV5UserQuerySubMembers")
+                except Exception:
+                    # Fallback por si la versión de CCXT es distinta
+                    res = await self._call_ccxt("privateGetUserQuerySubMembers")
 
                 result_data = res.get("result", {})
                 # Bybit V5 devuelve la lista en 'subMembers'
@@ -310,16 +312,17 @@ class ExchangeManager:
             return {"error": error_msg}
 
         try:
-            # Uso directo del endpoint V5 para máxima precisión
+            # Uso de UniversalTransfer para mover fondos entre distintos UIDs (Maestra -> Subcuenta)
             res = await self._call_ccxt(
-                "privatePostV5AssetTransferInterTransfer", 
+                "privatePostV5AssetTransferUniversalTransfer", 
                 {
-                    "transferId": transfer_id,       # Idempotencia
+                    "transferId": transfer_id,
                     "coin": coin,
-                    "amount": str(amount),           # String para evitar problemas de precisión
-                    "fromAccountType": "FUND",       # Billetera de fondos principal
-                    "toAccountType": "UNIFIED",      # Billetera UTA de subcuenta
-                    "toMemberId": str(sub_uid)
+                    "amount": str(amount),
+                    "fromMemberId": str(self.master_uid),
+                    "toMemberId": str(sub_uid),
+                    "fromAccountType": "FUND",
+                    "toAccountType": "UNIFIED"
                 }
             )
             

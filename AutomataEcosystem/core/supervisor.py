@@ -85,6 +85,7 @@ class Supervisor:
         self.strats = UaeStrategies(self.secret_store)
         self.liquidity_cushion = liquidity_cushion
         self.uae_logs = defaultdict(lambda: deque(maxlen=100))
+        self.uae_states = {}
         self.new_log_event = asyncio.Event()
         self.brain = SupervisorBrain()
         
