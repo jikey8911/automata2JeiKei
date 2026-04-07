@@ -603,6 +603,23 @@ class Supervisor:
                 async def summarize(text: str) -> list:
                     if not text.strip():
                         return []
+                    # Fallback simple parser if Ollama no disponible
+                    def fallback_events(raw: str) -> list:
+                        events = []
+                        for line in raw.splitlines()[-20:]:
+                            line = line.strip()
+                            if not line:
+                                continue
+                            sev = "INFO"
+                            lower = line.lower()
+                            if "error" in lower or "fail" in lower or "exception" in lower:
+                                sev = "ERROR"
+                            elif "warn" in lower or "retry" in lower:
+                                sev = "WARN"
+                            events.append({"title": line[:60], "detail": line, "severity": sev})
+                            if len(events) >= 8:
+                                break
+                        return events
                     try:
                         async with httpx.AsyncClient(timeout=15) as client:
                             resp = await client.post(
@@ -621,9 +638,11 @@ class Supervisor:
                                 import json as _json
                                 parsed = _json.loads(match.group(0))
                                 return parsed.get("events", [])
+                            # Si no pudo parsear JSON, intentar fallback
+                            return fallback_events(text)
                     except Exception as exc:
                         logger.warning("Ollama summary failed: %s", exc)
-                    return []
+                        return fallback_events(text)
 
                 sup_summary = await summarize(sup_logs)
                 uae_summary = {}
