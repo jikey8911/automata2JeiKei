@@ -155,23 +155,17 @@ class ExchangeManager:
         except Exception as exc:
             logger.exception("Failed to audit transfer %s: %s", transfer_id, exc)
 
-    def __init__(self, secret_store: Optional[EncryptedSecretStore] = None, testnet: bool = False, master_uid: Optional[str] = None) -> None:
-        self.store = secret_store or EncryptedSecretStore()
-        self.exchange_name = (self.store.get_secret("EXCHANGE_NAME") or os.getenv("EXCHANGE_NAME") or "binance").lower()
     async def get_genesis_balance(self) -> Dict[str, float]:
-        now = time.time()
-        if self._balance_cache is not None and (now - self._balance_timestamp) < 40:
-            return self._balance_cache
+        """
+        Spot/funding balances (USDT/USDC) usando fetch_balance.
+        """
         try:
             bal = await self._call_ccxt("fetch_balance")
             total = bal.get("total", {}) if isinstance(bal, dict) else {}
-            result = {
+            return {
                 "USDT": float(total.get("USDT", 0.0) or 0.0),
                 "USDC": float(total.get("USDC", 0.0) or 0.0),
             }
-            self._balance_cache = result
-            self._balance_timestamp = now
-            return result
         except Exception as exc:
             logger.warning("%s balance failed: %s", self.exchange_name, exc)
             return {"USDT": 0.0, "USDC": 0.0}
