@@ -85,6 +85,7 @@ class Supervisor:
         self.sectors = DiscoveredSectors(self.secret_store)
         self.strats = UaeStrategies(self.secret_store)
         self.liquidity_cushion = liquidity_cushion
+        self.ollama_url = self.secret_store.get_secret("OLLAMA_URL") or os.getenv("OLLAMA_URL", "http://163.192.114.190:11435")
         self.uae_logs = defaultdict(lambda: deque(maxlen=100))
         self.uae_states = {}
         self.new_log_event = asyncio.Event()
@@ -605,23 +606,23 @@ class Supervisor:
                     try:
                         async with httpx.AsyncClient(timeout=15) as client:
                             resp = await client.post(
-                                f\"{self.ollama_url}/api/generate\",
+                                f"{self.ollama_url}/api/generate",
                                 json={
-                                    \"model\": \"llama3.2:3b\",
-                                    \"prompt\": f\"{prompt}\\nLogs:\\n{text}\\nRespuesta solo JSON:\",
-                                    \"stream\": False,
+                                    "model": "llama3.2:3b",
+                                    "prompt": f"{prompt}\nLogs:\n{text}\nRespuesta solo JSON:",
+                                    "stream": False,
                                 },
                             )
                             resp.raise_for_status()
                             data = resp.json()
-                            raw = data.get(\"response\", \"{}\" )
-                            match = re.search(r\"{.*}\", raw, re.DOTALL)
+                            raw = data.get("response", "{}" )
+                            match = re.search(r"{.*}", raw, re.DOTALL)
                             if match:
                                 import json as _json
                                 parsed = _json.loads(match.group(0))
-                                return parsed.get(\"events\", [])
+                                return parsed.get("events", [])
                     except Exception as exc:
-                        logger.warning(\"Ollama summary failed: %s\", exc)
+                        logger.warning("Ollama summary failed: %s", exc)
                     return []
 
                 sup_summary = await summarize(sup_logs)
