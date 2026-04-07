@@ -275,12 +275,22 @@ class Supervisor:
 
             # Crear agente CEO proactivo dentro del contenedor (idempotente)
             try:
+                agent_path = "/root/.openclaw/workspace/AGENT.md"
+                msg = f"Agente CEO de {name}. Si falta prompt, revisa {agent_path}."
+                try:
+                    # lee el archivo dentro del contenedor
+                    cat_res = container.exec_run(["cat", agent_path], user="root")
+                    if cat_res.exit_code == 0 and cat_res.output:
+                        msg = cat_res.output.decode(errors="ignore")
+                except Exception:
+                    pass
+
                 exec_res = container.exec_run([
                     "openclaw", "agent", "create",
                     "--name", "ceo",
-                    "--bootstrap", "/root/.openclaw/workspace/AGENT.md"
+                    "-m", msg
                 ], user="root")
-                logger.info("Bootstrap agente CEO (%s): %s", name, exec_res.output.decode(errors="ignore"))
+                logger.info("Bootstrap agente CEO (%s): rc=%s out=%s", name, exec_res.exit_code, exec_res.output.decode(errors="ignore"))
             except Exception as exc:
                 logger.warning("No se pudo crear agente CEO dentro de %s: %s", name, exc)
 
