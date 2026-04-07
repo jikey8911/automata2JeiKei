@@ -205,7 +205,7 @@ export default function UaeList() {
                               <button 
                                 onClick={() => setEditingUae(null)} 
                                 className="p-1.5 text-slate-500 hover:text-white bg-white/5 rounded-md"
-                              >✕</button>
+                              >?</button>
                             </div>
                             
                             {/* Input manual si se solicita */}
@@ -279,11 +279,9 @@ export default function UaeList() {
           </div>
         )}
       </div>
-    </div>
-
       {modal && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-          <div className="bg-slate-900 border border-white/10 rounded-xl p-6 w-full max-width[480px] max-w-md space-y-4 shadow-xl shadow-emerald-500/10">
+          <div className="bg-slate-900 border border-white/10 rounded-xl p-6 w-full max-w-[480px] space-y-4 shadow-xl shadow-emerald-500/10">
             <div className="flex justify-between items-center">
               <div>
                 <h2 className="text-lg font-semibold text-white">Transferir fondos</h2>
@@ -294,7 +292,7 @@ export default function UaeList() {
             <div className="text-sm text-slate-300 space-y-1">
               <div>Balance master disponible: <span className="font-mono text-emerald-400">{masterBalance.toFixed(2)} USDT</span></div>
               <div>Sub UID destino: <span className="font-mono text-blue-300">{modal.subUid || "N/D"}</span></div>
-              <div>Master UID (env): <span className="font-mono text-slate-400">{process.env.BYBIT_MASTER_UID || "config secret"}</span></div>
+
             </div>
             <div className="space-y-2">
               <label className="text-xs text-slate-400">Monto (USDT)</label>
