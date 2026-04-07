@@ -623,7 +623,7 @@ class Supervisor:
                     # limitar longitud para evitar truncado en Ollama
                     trimmed = text[-2000:]
                     try:
-                        async with httpx.AsyncClient(timeout=15) as client:
+                        async with httpx.AsyncClient(timeout=60) as client:
                             resp = await client.post(
                                 f"{self.ollama_url}/api/generate",
                                 json={
