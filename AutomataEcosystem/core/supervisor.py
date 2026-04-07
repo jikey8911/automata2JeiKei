@@ -193,6 +193,37 @@ class Supervisor:
             import json
             config_path.write_text(json.dumps({"models": models}, indent=2))
 
+    def _seed_proactive_agent(self, workspace: Path, uae_name: str) -> None:
+        """
+        Crea archivos de arranque para que el CEO (OpenClaw) se inicie como agente proactivo.
+        No depende de systemd; OpenClaw leerá estos prompts al cargar el workspace.
+        """
+        workspace.mkdir(parents=True, exist_ok=True)
+        # Prompt principal del agente
+        agent_md = workspace / "AGENT.md"
+        agent_md.write_text(
+            "# Agente CEO Proactivo\n"
+            f"- Identidad: {uae_name}\n"
+            "- Objetivo: Buscar en internet oportunidades de ingresos (legal/ético), validar viabilidad, estimar ROI y lanzar workers especializados.\n"
+            "- Pipeline:\n"
+            "  1) Descubrir oportunidades (web/search/API).\n"
+            "  2) Evaluar viabilidad técnica y financiera (costo, ROI esperado, riesgo legal).\n"
+            "  3) Diseñar plan y crear worker con skills necesarias (scraping/API/trading/automatización) en OpenClaw.\n"
+            "  4) Monitorear, iterar y reportar al Supervisor (heartbeat/logs).\n"
+            "- Reglas:\n"
+            "  * Prioriza Ollama; usa modelos de pago solo si falla 2 veces o la tarea es crítica.\n"
+            "  * Prohíbe actividades ilegales o de alto riesgo.\n"
+            "  * Pide presupuesto mínimo para prototipo (1–2 USDT) y escala solo con resultados.\n"
+        )
+        # Archivo de tareas iniciales
+        boot_md = workspace / "tasks_boot.md"
+        boot_md.write_text(
+            "## Tarea inicial\n"
+            "- Explora nuevas fuentes de ingreso digital (microtareas bien pagadas, arbitraje de APIs, mercados emergentes, DeFi bajo riesgo).\n"
+            "- Prioriza bajo costo inicial y automatización completa.\n"
+            "- Entregable: lista de 3 oportunidades con ROI estimado y plan de implementación; crea un worker para la mejor.\n"
+        )
+
     def _boot_openclaw_uae(self, name: str, env: Dict[str, str], workspace: Path) -> str:
         """
         Lanza un contenedor OpenClaw que actuará como CEO de la UAE específica.
@@ -348,6 +379,7 @@ class Supervisor:
                 "ollama_url": self.ollama_url,
             }
             self._generate_soul(workspace, name, models_cfg)
+            self._seed_proactive_agent(workspace, name)
             container_id = await asyncio.to_thread(self._boot_openclaw_uae, name, env, workspace)
             
             # FASE 3: Fondeo y Registro (Solo si el contenedor arrancó)

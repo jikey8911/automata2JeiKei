@@ -12,6 +12,13 @@ RUN apt-get update \
        ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
+# Install Homebrew (brew) non-interactively for skill installs inside UAEs
+ENV NONINTERACTIVE=1
+RUN /bin/bash -c "(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" && \
+    echo 'eval "$($(brew --prefix)/bin/brew shellenv)"' >> /etc/profile && \
+    echo 'eval "$($(brew --prefix)/bin/brew shellenv)"' >> /root/.profile && \
+    echo 'eval "$($(brew --prefix)/bin/brew shellenv)"' >> /root/.bashrc
+
 # Create non-root user for runtime isolation
 RUN useradd -ms /bin/bash uae
 
