@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { NeoButton, NeoPanel, NeoCard } from "jeikei-design-system";
+import { NeoButton, NeoPanel } from "jeikei-design-system";
 import { RefreshCw } from "lucide-react";
 
 const SECRET_FIELDS = [
@@ -109,11 +109,11 @@ export default function Settings() {
             )
           )}
         </div>
-        <NeoCard className="flex justify-end mt-4">
+        <div className="flex justify-end mt-4">
           <NeoButton onClick={handleSave} disabled={saving}>
             {saving ? "Guardando..." : "Guardar"}
           </NeoButton>
-        </NeoCard>
+        </div>
       </NeoPanel>
     </div>
   );
