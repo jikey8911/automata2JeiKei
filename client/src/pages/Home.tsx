@@ -19,23 +19,6 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [showContainers, setShowContainers] = useState(false);
   const apiBase = useMemo(() => import.meta.env.VITE_API_URL || "/api", []);
-  const [bybitKey, setBybitKey] = useState("");
-  const [bybitSecret, setBybitSecret] = useState("");
-  const [bybitUid, setBybitUid] = useState("");
-  const [ollamaUrl, setOllamaUrl] = useState("");
-  const [exchangeName, setExchangeName] = useState("binanceus");
-  const [openaiKey, setOpenaiKey] = useState("");
-  const [geminiKey, setGeminiKey] = useState("");
-  const [voyageKey, setVoyageKey] = useState("");
-  const [mistralKey, setMistralKey] = useState("");
-  const [githubToken, setGithubToken] = useState("");
-  const [oracleKey, setOracleKey] = useState("");
-  const [jeikeiToken, setJeikeiToken] = useState("");
-  const [telegramToken, setTelegramToken] = useState("");
-  const [goplacesKey, setGoplacesKey] = useState("");
-  const [nanoBananaKey, setNanoBananaKey] = useState("");
-  const [notionKey, setNotionKey] = useState("");
-  const [showSecretsModal, setShowSecretsModal] = useState(false);
   const [supervisorLogs, setSupervisorLogs] = useState<string[]>([]);
   const [uaeLogs, setUaeLogs] = useState<string[]>([]);
   const [health, setHealth] = useState<HealthPayload | null>(null);
@@ -90,34 +73,6 @@ export default function Home() {
     fetchLogs();
     const id = setInterval(fetchLogs, 10000);
     return () => clearInterval(id);
-  }, [apiBase]);
-
-  useEffect(() => {
-    const loadSecrets = async () => {
-      try {
-        const res = await fetch(`${apiBase}/v1/secrets`);
-        const json = await res.json();
-        setBybitKey(json.BYBIT_API_KEY || "");
-        setBybitSecret(json.BYBIT_API_SECRET || "");
-        setBybitUid(json.BYBIT_MASTER_UID || "");
-        setOllamaUrl(json.OLLAMA_URL || "");
-        setExchangeName(json.EXCHANGE_NAME || "binanceus");
-        setOpenaiKey(json.OPENAI_API_KEY || "");
-        setGeminiKey(json.GEMINI_API_KEY || "");
-        setVoyageKey(json.VOYAGE_API_KEY || "");
-        setMistralKey(json.MISTRAL_API_KEY || "");
-        setGithubToken(json.GITHUB_TOKEN || "");
-        setOracleKey(json.ORACLE_API_KEY || "");
-        setJeikeiToken(json.JEIKEI_TOKEN || json.JEIKEI_API_KEY || "");
-        setTelegramToken(json.TELEGRAM_BOT_TOKEN || "");
-        setGoplacesKey(json.GOPLACES_API_KEY || "");
-        setNanoBananaKey(json.NANO_BANANA_API_KEY || "");
-        setNotionKey(json.NOTION_API_KEY || "");
-      } catch (err) {
-        console.error(err);
-      }
-    };
-    loadSecrets();
   }, [apiBase]);
 
   const totalUSDT = data.genesis_balance["USDT"] || 0;
@@ -207,18 +162,6 @@ export default function Home() {
             </ul>
           </NeoCard>
         </NeoGrid>
-
-        <NeoPanel glow className="border-white/10">
-          <div className="flex justify-between items-center mb-2">
-            <div>
-              <p className="text-xs uppercase text-slate-400">Credenciales</p>
-              <p className="text-sm text-slate-300">Configura API keys y OLLAMA_URL.</p>
-            </div>
-            <NeoButton variant="secondary" onClick={() => setShowSecretsModal(true)}>
-              Editar
-            </NeoButton>
-          </div>
-        </NeoPanel>
 
         <NeoGrid columns={{ base: 1, md: 2 }} gap="md">
           <NeoPanel glow className="border-white/10">

@@ -7,18 +7,20 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
 import UaeList from "./pages/UaeList";
 import Sectors from "./pages/Sectors";
+import Settings from "./pages/Settings";
 import { Sidebar } from "./components/Sidebar";
 import { SystemProvider } from "jeikei-design-system";
 
 function Router() {
   return (
-    <Switch>
-      <Route path="/" component={Home} />
-      <Route path="/uaes" component={UaeList} />
-      <Route path="/sectors" component={Sectors} />
-      <Route path="/404" component={NotFound} />
-      <Route component={NotFound} />
-    </Switch>
+      <Switch>
+        <Route path="/" component={Home} />
+        <Route path="/uaes" component={UaeList} />
+        <Route path="/sectors" component={Sectors} />
+        <Route path="/settings" component={Settings} />
+        <Route path="/404" component={NotFound} />
+        <Route component={NotFound} />
+      </Switch>
   );
 }
 
