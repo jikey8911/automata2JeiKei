@@ -321,6 +321,7 @@ class ExchangeManager:
 
         try:
             # Uso de UniversalTransfer para mover fondos entre distintos UIDs (Maestra -> Subcuenta)
+            # Nota: Se asegura que amount sea string y se envían parámetros obligatorios de Bybit V5
             res = await self._call_ccxt(
                 "privatePostV5AssetTransferUniversalTransfer", 
                 {

@@ -256,8 +256,7 @@ class Supervisor:
             # Limpia contenedor previo si existe
             try:
                 existing = self.client.containers.get(name)
-                if existing.status != "running":
-                    existing.remove(force=True)
+                existing.remove(force=True)
             except Exception:
                 pass
 
@@ -266,33 +265,41 @@ class Supervisor:
                 name=name,
                 detach=True,
                 environment=env,
-                ports={f"{self.openclaw_gateway_port}/tcp": None},  # map aleatorio para evitar colisión; usamos red interna
+                ports={f"18789/tcp": None},  # map aleatorio para evitar colisión; usamos red interna
                 volumes={str(workspace): {"bind": "/root/.openclaw/workspace", "mode": "rw"}},
                 network="automata_net",
                 auto_remove=False,
             )
             logger.info("UAE %s (OpenClaw) lanzada", name)
 
-            # Crear agente CEO proactivo dentro del contenedor (idempotente)
-            try:
-                agent_path = "/root/.openclaw/workspace/AGENT.md"
-                msg = f"Agente CEO de {name}. Si falta prompt, revisa {agent_path}."
-                try:
-                    # lee el archivo dentro del contenedor
-                    cat_res = container.exec_run(["cat", agent_path], user="root")
-                    if cat_res.exit_code == 0 and cat_res.output:
-                        msg = cat_res.output.decode(errors="ignore")
-                except Exception:
-                    pass
+            # Esperar a que el servicio interno de OpenClaw se inicialice
+            time.sleep(5)
 
+            # Configurar Ollama y el agente CEO proactivo dentro del contenedor
+            try:
+                # 1. Configurar el proveedor Ollama
+                ollama_url = env.get("OLLAMA_URL", "http://163.192.114.190:11435")
+                container.exec_run(["openclaw", "config", "set", "providers.ollama.baseUrl", ollama_url], user="root")
+                
+                # 2. Configurar el modelo principal
+                primary_model = env.get("OLLAMA_MODEL", "llama3.2:3b")
+                container.exec_run(["openclaw", "config", "set", "models.primary", f"ollama/{primary_model}"], user="root")
+
+                # 3. Leer prompt de AGENT.md
+                agent_path = "/root/.openclaw/workspace/AGENT.md"
+                cat_res = container.exec_run(["cat", agent_path], user="root")
+                msg = cat_res.output.decode(errors="ignore") if cat_res.exit_code == 0 else f"Agente CEO de {name}"
+
+                # 4. Crear el agente CEO usando el modelo configurado
                 exec_res = container.exec_run([
-                    "openclaw", "agent", "create",
-                    "ceo",
-                    "-m", msg
+                    "openclaw", "agent", "create", "ceo",
+                    "--model", f"ollama/{primary_model}",
+                    "--prompt", msg
                 ], user="root")
+                
                 logger.info("Bootstrap agente CEO (%s): rc=%s out=%s", name, exec_res.exit_code, exec_res.output.decode(errors="ignore"))
             except Exception as exc:
-                logger.warning("No se pudo crear agente CEO dentro de %s: %s", name, exc)
+                logger.warning("No se pudo configurar/crear agente CEO dentro de %s: %s", name, exc)
 
             return container.id
         except Exception as exc:
