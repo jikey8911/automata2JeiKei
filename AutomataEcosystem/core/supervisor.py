@@ -139,6 +139,7 @@ class Supervisor:
             self.registry.register(
                 uae_id=name,
                 sub_uid=sub_uid,
+                sub_account_name=name,
                 card_id=card["card_id"],
                 card_number=card["number"],
                 card_cvv=card["cvv"],

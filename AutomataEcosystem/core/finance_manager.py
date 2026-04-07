@@ -185,10 +185,19 @@ class ExchangeManager:
         """
         try:
             if self.exchange_name == "bybit":
-                # Firma unificada de CCXT: create_sub_account(name, type, [params])
-                # Bybit: 1=Normal, 6=UTAccount
-                res = await self._call_ccxt("create_sub_account", name[:30], "normal")
-                sub_uid = res.get("subMemberId")
+                # Usamos la llamada directa a la API V5 de Bybit para mayor precisión
+                # Las llamadas implícitas de CCXT (privatePost*) esperan un solo diccionario como argumento.
+                res = await self._call_ccxt(
+                    "privatePostV5UserCreateSubMember", 
+                    {
+                        "subMemberName": name[:30],
+                        "memberType": 1,  # 1: Normal Sub Account
+                        "switch": 1       # 1: Quick login enabled
+                    }
+                )
+                # Bybit V5 retorna el resultado en 'result'
+                result_data = res.get("result", {})
+                sub_uid = result_data.get("uid") or result_data.get("subMemberId")
                 if sub_uid:
                     logger.info("Successfully created Bybit subaccount: %s for UAE %s", sub_uid, name)
                     return str(sub_uid)

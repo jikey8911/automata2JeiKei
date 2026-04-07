@@ -203,6 +203,7 @@ class UaeRegistry:
                     CREATE TABLE IF NOT EXISTS uae_registry (
                         uae_id TEXT PRIMARY KEY,
                         bybit_subaccount_id TEXT NOT NULL,
+                        sub_account_name TEXT,
                         vcc_card_id TEXT NOT NULL,
                         vcc_number_enc BLOB NOT NULL,
                         vcc_cvv_enc BLOB NOT NULL,
@@ -225,6 +226,7 @@ class UaeRegistry:
         card_number: str,
         card_cvv: str,
         card_exp: str,
+        sub_account_name: Optional[str] = None,
         status: str = "active",
     ) -> None:
         try:
@@ -232,13 +234,14 @@ class UaeRegistry:
                 conn.execute(
                     """
                     INSERT OR REPLACE INTO uae_registry (
-                        uae_id, bybit_subaccount_id, vcc_card_id,
+                        uae_id, bybit_subaccount_id, sub_account_name, vcc_card_id,
                         vcc_number_enc, vcc_cvv_enc, vcc_exp_enc, status
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?);
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
                     """,
                     (
                         uae_id,
                         sub_uid,
+                        sub_account_name,
                         card_id,
                         self.store._fernet.encrypt(card_number.encode("utf-8")),
                         self.store._fernet.encrypt(card_cvv.encode("utf-8")),
