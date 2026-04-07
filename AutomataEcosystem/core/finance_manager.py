@@ -18,6 +18,7 @@ import ccxt
 import httpx
 
 from .database import EncryptedSecretStore, DEFAULT_DB_PATH
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
