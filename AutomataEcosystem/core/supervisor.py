@@ -111,7 +111,7 @@ class Supervisor:
         """
         try:
             logger.info("Provisioning UAE '%s' with capital %.2f", name, capital)
-            sub_uid = await self.bybit.create_subaccount()
+            sub_uid = await self.exchange.create_subaccount()
             if not sub_uid:
                 raise RuntimeError("Failed to create Bybit sub UID")
 
@@ -210,7 +210,7 @@ class Supervisor:
                 profit,
                 self.genesis_wallet_id,
             )
-            await self.bybit.collect_taxes(uae_id, tax)
+            await self.exchange.collect_taxes(uae_id, tax)
             return tax
         except Exception as exc:
             logger.exception("Tax collection failed for profit %.4f: %s", profit, exc)
@@ -474,7 +474,7 @@ class Supervisor:
         last_total = 0.0
         while True:
             try:
-                balances = await self.bybit.get_genesis_balance()
+                balances = await self.exchange.get_genesis_balance()
                 total = sum(balances.values())
                 active = any(r["status"] == "active" for r in self.registry.list_all())
                 if total > last_total and not active:
