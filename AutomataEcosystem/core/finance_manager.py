@@ -239,6 +239,21 @@ class ExchangeManager:
             logger.warning("create_subaccount failed on %s: %s", self.exchange_name, exc)
             return None
 
+    async def list_subaccounts(self) -> List[Dict[str, str]]:
+        """
+        Obtener lista de todas las subcuentas (sub-members) en el exchange.
+        Retorna lista de {uid, username}.
+        """
+        try:
+            if self.exchange_name == "bybit":
+                res = await self._call_ccxt("privateGetV5UserQuerySubMembers")
+                sub_list = res.get("result", {}).get("subMemberList", [])
+                return [{"uid": str(s.get("uid")), "username": s.get("username")} for s in sub_list]
+            return []
+        except Exception as exc:
+            logger.error("Failed to list subaccounts on %s: %s", self.exchange_name, exc)
+            return []
+
     async def distribute_to_uae(self, uae_id: str, sub_uid: str, amount: float, coin: str = "USDT") -> Dict:
         """
         Realiza una transferencia interna desde la cuenta Maestra a la Subcuenta.

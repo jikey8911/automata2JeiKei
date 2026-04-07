@@ -104,6 +104,45 @@ class Supervisor:
             logger.exception("Docker connection failed: %s", exc)
             raise
 
+    async def _get_orphan_subaccount(self) -> Optional[str]:
+        """
+        Identifica subcuentas en Bybit que no están vinculadas a una UAE activa (corriendo en Docker).
+        """
+        try:
+            # 1. Obtener todas las subcuentas del Exchange
+            exchange_subs = await self.exchange.list_subaccounts()
+            exchange_uids = {s["uid"] for s in exchange_subs}
+            
+            # 2. Obtener todas las UAEs registradas localmente y su estado en Docker
+            registered = self.registry.list_all()
+            active_uids = set()
+            
+            for reg in registered:
+                uae_id = reg["uae_id"]
+                sub_uid = reg["bybit_subaccount_id"]
+                try:
+                    # Verificamos si el contenedor existe y está corriendo
+                    container = await asyncio.to_thread(self.client.containers.get, uae_id)
+                    if container.status == "running":
+                        active_uids.add(sub_uid)
+                except Exception:
+                    # Si el contenedor no existe o hay error, la subcuenta está potencialmente libre
+                    logger.debug("UAE %s no activa en Docker. Subcuenta %s disponible para adopción.", uae_id, sub_uid)
+                    pass
+            
+            # 3. Huérfanas = (Todas en Bybit) - (Aquellas en BD y Activas en Docker)
+            orphans = list(exchange_uids - active_uids)
+            
+            if orphans:
+                selected_uid = orphans[0]
+                logger.info("Discovery: Encontrada(s) %d subcuenta(s) libre(s). Reutilizando UID=%s", len(orphans), selected_uid)
+                return selected_uid
+                
+            return None
+        except Exception as e:
+            logger.error("Error durante el descubrimiento de huérfanos: %s", e)
+            return None
+
     async def create_uae(
         self,
         name: str,
@@ -113,29 +152,59 @@ class Supervisor:
         command: Optional[str] = None,
     ) -> str:
         """
-        Provision subaccount, card, fund, and launch UAE container.
-        Returns container ID.
+        Flujo de Orquestación: Exchange (Descubrir/Crear) -> Docker (Spawn) -> Fondeo (Transferencia/VCC).
         """
         try:
-            logger.info("Provisioning UAE '%s' with capital %.2f", name, capital)
-            sub_uid = await self.exchange.create_subaccount(name)
+            logger.info("Orchestrating UAE '%s' | Capital: %.2f", name, capital)
+            
+            # FASE 1: Asegurar Recurso Financiero (Prioridad: Reutilizar > Crear)
+            sub_uid = await self._get_orphan_subaccount()
             if not sub_uid:
-                raise RuntimeError(f"Failed to create Bybit subaccount for {name}")
+                logger.info("CERO subcuentas libres. Iniciando creación de nueva subcuenta para '%s'...", name)
+                sub_uid = await self.exchange.create_subaccount(name)
+            
+            if not sub_uid:
+                raise RuntimeError(f"Imposible asignar subcuenta para {name}")
 
+            # FASE 2: Desplegar Recurso Computacional (Docker)
+            # Preparamos entorno sin tarjeta por ahora (se inyectará vía config posterior o handshake)
+            env = environment or {}
+            env.update({
+                "UAE_NAME": name,
+                "BYBIT_SUB_UID": sub_uid,
+                "OLLAMA_URL": "http://163.192.114.190:11435",
+            })
+            # Inyectar otros secretos (GenAI, GitHub, etc.)
+            for key in SECRET_KEYS:
+                val = self.secret_store.get_secret(key)
+                if val:
+                    env.setdefault(key, val)
+
+            logger.info("Iniciando contenedor Docker para '%s' con UID=%s", name, sub_uid)
+            container = await asyncio.to_thread(
+                self.client.containers.run,
+                image=image,
+                name=name,
+                detach=True,
+                environment=env,
+                command=command,
+                auto_remove=False,
+                network_mode="bridge",
+                volumes={"/var/run/docker.sock": {"bind": "/var/run/docker.sock", "mode": "rw"}},
+            )
+            
+            # FASE 3: Fondeo y Registro (Solo si el contenedor arrancó)
+            card = { "card_id": "vcc-placeholder", "number": "0000", "cvv": "000", "exp": "12/30" }
             try:
-                # Transferir capital real desde la maestra a la subcuenta
+                logger.info("Fondeando subcuenta %s con %.2f USDT...", sub_uid, capital)
                 await self.exchange.distribute_to_uae(name, sub_uid, capital)
+                
+                logger.info("Emitiendo tarjeta virtual para %s...", sub_uid)
                 card = await self.virtual_cards.issue_card(sub_uid, capital)
             except Exception as exc:
-                logger.warning("Funding/card step failed (continuando sin fondos): %s", exc)
-                card = {
-                    "card_id": "vcc-placeholder",
-                    "number": "0000",
-                    "cvv": "000",
-                    "exp": "12/30",
-                }
+                logger.warning("Fase de fondeo/tarjeta falló. La UAE funcionará en modo observación: %s", exc)
 
-            # Persist sensitive card data encrypted
+            # Persistir en el registro
             self.registry.register(
                 uae_id=name,
                 sub_uid=sub_uid,
@@ -147,41 +216,11 @@ class Supervisor:
                 status="active",
             )
 
-            env = environment or {}
-            env.update(
-                {
-                    "UAE_NAME": name,
-                    "BYBIT_SUB_UID": sub_uid,
-                    "VCC_CARD_ID": card["card_id"],
-                    "VCC_NUMBER": card["number"],
-                    "VCC_CVV": card["cvv"],
-                    "VCC_EXP": card["exp"],
-                    "OLLAMA_URL": "http://163.192.114.190:11435",
-                }
-            )
-            # Inyectar secretos relevantes en la UAE
-            for key in SECRET_KEYS:
-                val = self.secret_store.get_secret(key)
-                if val:
-                    # No sobreescribir si ya viene en environment
-                    env.setdefault(key, val)
-
-            container = await asyncio.to_thread(
-                self.client.containers.run,
-                image=image,
-                name=name,
-                detach=True,
-                environment=env,
-                # platform=self.target_platform,  # use host default to avoid local arch conflicts
-                command=command,
-                auto_remove=False,
-                network_mode="bridge",
-                volumes={"/var/run/docker.sock": {"bind": "/var/run/docker.sock", "mode": "rw"}},
-            )
-            logger.info("UAE '%s' started. Container ID=%s", name, container.id)
+            logger.info("UAE '%s' orquestada con éxito. Container ID=%s", name, container.id)
             return container.id
-        except (APIError, DockerException) as exc:
-            logger.exception("Failed to create UAE '%s': %s", name, exc)
+
+        except Exception as exc:
+            logger.exception("Falla crítica en orquestación de UAE '%s': %s", name, exc)
             raise
 
     async def terminate_uae(self, container_id: str) -> None:
