@@ -246,10 +246,14 @@ class ExchangeManager:
         """
         try:
             if self.exchange_name == "bybit":
-                # El endpoint correcto en CCXT para V5 es este:
-                res = await self._call_ccxt("privateGetV5UserQuerySubMember")
-                
-                # Bybit V5 devuelve los datos en res['result']['subMembers']
+                # Opción A (Más compatible): Usar el nombre con guiones bajos que CCXT genera
+                # Si falla, usamos la llamada directa por endpoint
+                try:
+                    res = await self._call_ccxt("private_get_v5_user_query_sub_member")
+                except:
+                    # Opción B: Llamada directa al endpoint si el método mapeado no se encuentra
+                    res = await self._call_ccxt("privateGetV5UserQuerySubMember")
+
                 result_data = res.get("result", {})
                 sub_list = result_data.get("subMembers", [])
                 
