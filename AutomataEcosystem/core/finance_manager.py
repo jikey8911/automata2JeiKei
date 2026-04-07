@@ -218,13 +218,22 @@ class ExchangeManager:
                 # En V5 el campo suele ser 'uid'
                 sub_uid = result_data.get("uid")
                 
-                if sub_uid:
+                # VALIDACIÓN CRÍTICA: Evitar transferencias circulares
+                if sub_uid and str(sub_uid) != str(self.master_uid):
                     logger.info("Successfully created Bybit subaccount: %s", sub_uid)
                     return str(sub_uid)
+                else:
+                    logger.error("Bybit devolvió el mismo UID que la cuenta maestra o un UID nulo")
+
+            # Si llegamos aquí, algo falló o el UID era idéntico
+            fallback = os.getenv("BYBIT_FALLBACK_SUB_UID")
             
-            # Fallback si no es Bybit o algo sale mal
-            fallback = self.master_uid or os.getenv("BYBIT_FALLBACK_SUB_UID")
-            return str(fallback) if fallback else None
+            # Solo devolver fallback si NO es igual al master_uid (para evitar el error 131200 después)
+            if fallback and str(fallback) != str(self.master_uid):
+                logger.info("Using fallback sub UID=%s", fallback)
+                return str(fallback)
+            
+            return None
 
         except Exception as exc:
             logger.warning("create_subaccount failed on %s: %s", self.exchange_name, exc)
