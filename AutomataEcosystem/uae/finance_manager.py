@@ -26,6 +26,10 @@ class UaeFinanceManager:
         # 1. Load configuration from environment or constructor
         self.uid = uid or os.getenv("BYBIT_SUB_UID")
         self.proxy_url = proxy_url or os.getenv("CCXT_PROXY_URL") or "http://100.90.90.65:8000"
+        self.exchange_name = os.getenv("EXCHANGE_NAME", "bybit").lower()
+        upper = self.exchange_name.replace("-", "").replace(" ", "").upper()
+        self.api_key = os.getenv(f"{upper}_API_KEY") or os.getenv("BYBIT_API_KEY", "")
+        self.api_secret = os.getenv(f"{upper}_API_SECRET") or os.getenv("BYBIT_API_SECRET", "")
         
         # 2. Balance Cache (TTL: 40 seconds as requested)
         self._balance_cache: Dict[str, float] = {}
@@ -49,9 +53,13 @@ class UaeFinanceManager:
         Internal helper to route CCXT calls through the remote executor.
         """
         payload = {
+            "exchange_name": self.exchange_name,
+            "api_key": self.api_key,
+            "secret": self.api_secret,
+            "uid": self.uid,
             "method": method,
             "args": args or [],
-            "uid": self.uid,
+            "kwargs": {},
         }
         
         try:
@@ -61,10 +69,10 @@ class UaeFinanceManager:
                 resp.raise_for_status()
                 data = resp.json()
                 
-                if not data.get("ok"):
-                    raise RuntimeError(f"CCXT Remote Error: {data.get('error')}")
+                if data.get("status") != "exito":
+                    raise RuntimeError(f"CCXT Remote Error: {data}")
                 
-                return data.get("result")
+                return data.get("data")
         except Exception as exc:
             logger.error("CCXT Proxy call failed (%s): %s", method, exc)
             raise

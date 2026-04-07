@@ -27,6 +27,7 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - OLLAMA_URL=http://ollama:11434
+      - CCXT_PROXY_URL=http://100.90.90.65:8000
     ports:
       - "8000:8000"
     restart: unless-stopped
@@ -47,6 +48,7 @@ services:
       - PYTHONUNBUFFERED=1
       - SUPERVISOR_URL=http://automata_supervisor:8000
       - OLLAMA_URL=http://ollama:11434
+      - CCXT_PROXY_URL=http://100.90.90.65:8000
     restart: "no"
 
   frontend:
