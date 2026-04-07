@@ -396,6 +396,17 @@ class Supervisor:
                     "ollama": False,
                 }
 
+        @app.get("/api/v1/uaes")
+        async def api_list_all_uaes():
+            """
+            Devuelve la lista completa de UAEs registradas en la base de datos.
+            """
+            try:
+                return self.registry.list_all()
+            except Exception as exc:
+                logger.error("Failed to list UAEs from registry: %s", exc)
+                raise HTTPException(status_code=500, detail="registry_error")
+
         @app.post("/api/v1/request_spending")
         async def request_spending(payload: Dict) -> Dict:
             amount = float(payload.get("amount", 0))
