@@ -185,8 +185,9 @@ class ExchangeManager:
         """
         try:
             if self.exchange_name == "bybit":
-                # Bybit expects subMemberName (max 30 chars), memberType=1 (Normal)
-                res = await self._call_ccxt("create_sub_account", memberType=1, subMemberName=name[:30])
+                # Firma unificada de CCXT: create_sub_account(name, type, [params])
+                # Bybit: 1=Normal, 6=UTAccount
+                res = await self._call_ccxt("create_sub_account", name[:30], "normal")
                 sub_uid = res.get("subMemberId")
                 if sub_uid:
                     logger.info("Successfully created Bybit subaccount: %s for UAE %s", sub_uid, name)
