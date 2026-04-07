@@ -182,15 +182,28 @@ class ExchangeManager:
     async def create_subaccount(self, name: str) -> Optional[str]:
         """
         Intentar crear subcuenta en Bybit usando v5 create_sub_account.
+        Aplica sanitización estricta (Bybit rules: 6-16 chars, alfanumérico).
         """
         try:
             if self.exchange_name == "bybit":
+                # 1. Sanitizar: Solo letras y números
+                clean_name = "".join(filter(str.isalnum, name))
+                # 2. Asegurar que empiece con letra (prefijo 'uae' si es necesario)
+                if not clean_name or not clean_name[0].isalpha():
+                    clean_name = "uae" + clean_name
+                # 3. Añadir sufijo aleatorio para unicidad y ajustar longitud (6-16)
+                suffix = secrets.token_hex(2) # 4 chars
+                final_name = (clean_name[:12] + suffix).lower()
+                if len(final_name) < 6:
+                    final_name = final_name.ljust(6, "x")
+
+                logger.info("Sanitized subaccount name: %s -> %s", name, final_name)
+                
                 # Usamos la llamada directa a la API V5 de Bybit para mayor precisión
-                # Las llamadas implícitas de CCXT (privatePost*) esperan un solo diccionario como argumento.
                 res = await self._call_ccxt(
                     "privatePostV5UserCreateSubMember", 
                     {
-                        "subMemberName": name[:30],
+                        "subMemberName": final_name,
                         "memberType": 1,  # 1: Normal Sub Account
                         "switch": 1       # 1: Quick login enabled
                     }
