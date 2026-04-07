@@ -5,6 +5,14 @@ import { NeoButton, NeoCard, NeoGrid, NeoPanel } from "jeikei-design-system";
 type ContainerInfo = { name: string; status: string; id: string };
 type SectorInfo = { sector_name: string; discoverer_uae_id: string; status: string; created_at: string };
 type StatusPayload = { containers: ContainerInfo[]; sectors: SectorInfo[]; genesis_balance: Record<string, number> };
+type HealthPayload = {
+  supervisor: boolean;
+  docker: boolean;
+  wallet: boolean;
+  wallet_error?: string;
+  ollama: boolean;
+  ollama_models?: string[];
+};
 
 export default function Home() {
   const [data, setData] = useState<StatusPayload>({ containers: [], sectors: [], genesis_balance: {} });
@@ -16,9 +24,21 @@ export default function Home() {
   const [bybitUid, setBybitUid] = useState("");
   const [ollamaUrl, setOllamaUrl] = useState("");
   const [exchangeName, setExchangeName] = useState("binanceus");
+  const [openaiKey, setOpenaiKey] = useState("");
+  const [geminiKey, setGeminiKey] = useState("");
+  const [voyageKey, setVoyageKey] = useState("");
+  const [mistralKey, setMistralKey] = useState("");
+  const [githubToken, setGithubToken] = useState("");
+  const [oracleKey, setOracleKey] = useState("");
+  const [jeikeiToken, setJeikeiToken] = useState("");
+  const [telegramToken, setTelegramToken] = useState("");
+  const [goplacesKey, setGoplacesKey] = useState("");
+  const [nanoBananaKey, setNanoBananaKey] = useState("");
+  const [notionKey, setNotionKey] = useState("");
   const [showSecretsModal, setShowSecretsModal] = useState(false);
   const [supervisorLogs, setSupervisorLogs] = useState<string[]>([]);
   const [uaeLogs, setUaeLogs] = useState<string[]>([]);
+  const [health, setHealth] = useState<HealthPayload | null>(null);
 
   const loadStatus = async () => {
     setLoading(true);
@@ -36,6 +56,21 @@ export default function Home() {
   useEffect(() => {
     loadStatus();
     const id = setInterval(loadStatus, 5000);
+    return () => clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    const loadHealth = async () => {
+      try {
+        const res = await fetch(`${apiBase}/v1/health`);
+        const json = await res.json();
+        setHealth(json);
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    loadHealth();
+    const id = setInterval(loadHealth, 7000);
     return () => clearInterval(id);
   }, []);
 
@@ -67,6 +102,17 @@ export default function Home() {
         setBybitUid(json.BYBIT_MASTER_UID || "");
         setOllamaUrl(json.OLLAMA_URL || "");
         setExchangeName(json.EXCHANGE_NAME || "binanceus");
+        setOpenaiKey(json.OPENAI_API_KEY || "");
+        setGeminiKey(json.GEMINI_API_KEY || "");
+        setVoyageKey(json.VOYAGE_API_KEY || "");
+        setMistralKey(json.MISTRAL_API_KEY || "");
+        setGithubToken(json.GITHUB_TOKEN || "");
+        setOracleKey(json.ORACLE_API_KEY || "");
+        setJeikeiToken(json.JEIKEI_TOKEN || json.JEIKEI_API_KEY || "");
+        setTelegramToken(json.TELEGRAM_BOT_TOKEN || "");
+        setGoplacesKey(json.GOPLACES_API_KEY || "");
+        setNanoBananaKey(json.NANO_BANANA_API_KEY || "");
+        setNotionKey(json.NOTION_API_KEY || "");
       } catch (err) {
         console.error(err);
       }
@@ -90,6 +136,27 @@ export default function Home() {
       </header>
 
       <main className="space-y-6">
+        {/* Indicadores rápidos */}
+        <div className="flex flex-wrap gap-3">
+          {[
+            { label: "Supervisor", ok: health?.supervisor ?? false },
+            { label: "Docker", ok: health?.docker ?? false },
+            { label: "Billetera", ok: health?.wallet ?? false, extra: health?.wallet_error },
+            { label: "Ollama", ok: health?.ollama ?? false },
+          ].map((item) => (
+            <div
+              key={item.label}
+              className={`px-3 py-2 rounded-lg border text-sm ${
+                item.ok ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-200" : "border-red-500/30 bg-red-500/10 text-red-200"
+              }`}
+            >
+              <span className="font-semibold">{item.label}:</span>{" "}
+              <span>{item.ok ? "OK" : "OFF"}</span>
+              {item.extra && !item.ok && <span className="block text-xs text-red-200/80 mt-1">{item.extra}</span>}
+            </div>
+          ))}
+        </div>
+
         <NeoGrid columns={{ base: 1, md: 2, lg: 3 }} gap="md" className="w-full">
           <NeoCard
             title="UAEs Activos"
@@ -208,6 +275,17 @@ export default function Home() {
                   <option value="okx">OKX (puede requerir proxy/Geo)</option>
                 </select>
               </div>
+              <input className="bg-slate-800 border border-white/10 rounded px-2 py-2 text-sm" placeholder="OPENAI_API_KEY" value={openaiKey} onChange={(e) => setOpenaiKey(e.target.value)} />
+              <input className="bg-slate-800 border border-white/10 rounded px-2 py-2 text-sm" placeholder="GEMINI_API_KEY" value={geminiKey} onChange={(e) => setGeminiKey(e.target.value)} />
+              <input className="bg-slate-800 border border-white/10 rounded px-2 py-2 text-sm" placeholder="VOYAGE_API_KEY" value={voyageKey} onChange={(e) => setVoyageKey(e.target.value)} />
+              <input className="bg-slate-800 border border-white/10 rounded px-2 py-2 text-sm" placeholder="MISTRAL_API_KEY" value={mistralKey} onChange={(e) => setMistralKey(e.target.value)} />
+              <input className="bg-slate-800 border border-white/10 rounded px-2 py-2 text-sm" placeholder="GITHUB_TOKEN" value={githubToken} onChange={(e) => setGithubToken(e.target.value)} />
+              <input className="bg-slate-800 border border-white/10 rounded px-2 py-2 text-sm" placeholder="ORACLE_API_KEY" value={oracleKey} onChange={(e) => setOracleKey(e.target.value)} />
+              <input className="bg-slate-800 border border-white/10 rounded px-2 py-2 text-sm" placeholder="JEIKEI_TOKEN" value={jeikeiToken} onChange={(e) => setJeikeiToken(e.target.value)} />
+              <input className="bg-slate-800 border border-white/10 rounded px-2 py-2 text-sm" placeholder="TELEGRAM_BOT_TOKEN" value={telegramToken} onChange={(e) => setTelegramToken(e.target.value)} />
+              <input className="bg-slate-800 border border-white/10 rounded px-2 py-2 text-sm" placeholder="GOPLACES_API_KEY" value={goplacesKey} onChange={(e) => setGoplacesKey(e.target.value)} />
+              <input className="bg-slate-800 border border-white/10 rounded px-2 py-2 text-sm" placeholder="NANO_BANANA_API_KEY" value={nanoBananaKey} onChange={(e) => setNanoBananaKey(e.target.value)} />
+              <input className="bg-slate-800 border border-white/10 rounded px-2 py-2 text-sm" placeholder="NOTION_API_KEY" value={notionKey} onChange={(e) => setNotionKey(e.target.value)} />
             </div>
             <div className="flex gap-3 justify-end">
               <button onClick={() => setShowSecretsModal(false)} className="px-3 py-2 rounded border border-white/10 text-slate-300">Cancelar</button>
@@ -223,6 +301,17 @@ export default function Home() {
                         BYBIT_MASTER_UID: bybitUid || undefined,
                         OLLAMA_URL: ollamaUrl || undefined,
                         EXCHANGE_NAME: exchangeName || undefined,
+                        OPENAI_API_KEY: openaiKey || undefined,
+                        GEMINI_API_KEY: geminiKey || undefined,
+                        VOYAGE_API_KEY: voyageKey || undefined,
+                        MISTRAL_API_KEY: mistralKey || undefined,
+                        GITHUB_TOKEN: githubToken || undefined,
+                        ORACLE_API_KEY: oracleKey || undefined,
+                        JEIKEI_TOKEN: jeikeiToken || undefined,
+                        TELEGRAM_BOT_TOKEN: telegramToken || undefined,
+                        GOPLACES_API_KEY: goplacesKey || undefined,
+                        NANO_BANANA_API_KEY: nanoBananaKey || undefined,
+                        NOTION_API_KEY: notionKey || undefined,
                       }),
                     });
                     setShowSecretsModal(false);

@@ -14,6 +14,30 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse
 import uvicorn
+import httpx
+
+SECRET_KEYS = [
+    # Exchange / core infra
+    "BYBIT_API_KEY",
+    "BYBIT_API_SECRET",
+    "BYBIT_MASTER_UID",
+    "EXCHANGE_NAME",
+    # LLM / AI providers
+    "OLLAMA_URL",
+    "OPENAI_API_KEY",
+    "GEMINI_API_KEY",
+    "VOYAGE_API_KEY",
+    "MISTRAL_API_KEY",
+    # DevOps / source control
+    "GITHUB_TOKEN",
+    # Cloud / services
+    "ORACLE_API_KEY",
+    "JEIKEI_TOKEN",
+    "TELEGRAM_BOT_TOKEN",
+    "GOPLACES_API_KEY",
+    "NANO_BANANA_API_KEY",
+    "NOTION_API_KEY",
+]
 
 import docker
 from docker.errors import APIError, DockerException, NotFound
@@ -122,6 +146,12 @@ class Supervisor:
                     "OLLAMA_URL": "http://163.192.114.190:11435",
                 }
             )
+            # Inyectar secretos relevantes en la UAE
+            for key in SECRET_KEYS:
+                val = self.secret_store.get_secret(key)
+                if val:
+                    # No sobreescribir si ya viene en environment
+                    env.setdefault(key, val)
 
             container = await asyncio.to_thread(
                 self.client.containers.run,
@@ -236,14 +266,7 @@ class Supervisor:
         @app.get("/api/v1/secrets")
         async def get_secrets() -> Dict:
             try:
-                keys = [
-                    "BYBIT_API_KEY",
-                    "BYBIT_API_SECRET",
-                    "BYBIT_MASTER_UID",
-                    "OLLAMA_URL",
-                    "EXCHANGE_NAME",
-                ]
-                data = {k: self.secret_store.get_secret(k) for k in keys}
+                data = {k: self.secret_store.get_secret(k) for k in SECRET_KEYS}
                 return data
             except Exception as exc:
                 logger.exception("Failed to read secrets: %s", exc)
@@ -265,6 +288,57 @@ class Supervisor:
             except Exception as exc:
                 logger.exception("Status endpoint failed: %s", exc)
                 raise HTTPException(status_code=500, detail="status failed")
+
+        @app.get("/api/v1/health")
+        async def health() -> Dict:
+            """
+            Indicadores rápidos para el dashboard.
+            """
+            try:
+                docker_ok = False
+                try:
+                    docker_ok = await asyncio.to_thread(self.client.ping)
+                except Exception:
+                    docker_ok = False
+
+                wallet_ok = False
+                wallet_error = ""
+                try:
+                    await self.bybit.get_genesis_balance()
+                    wallet_ok = True
+                except Exception as exc:
+                    wallet_ok = False
+                    wallet_error = str(exc)
+
+                ollama_ok = False
+                ollama_models = []
+                ollama_url = self.secret_store.get_secret("OLLAMA_URL") or "http://localhost:11434"
+                try:
+                    async with httpx.AsyncClient(timeout=5.0) as client:
+                        r = await client.get(f"{ollama_url.rstrip('/')}/api/tags")
+                        if r.status_code == 200:
+                            data = r.json()
+                            ollama_models = [m.get("name") for m in data.get("models", [])]
+                            ollama_ok = True
+                except Exception:
+                    ollama_ok = False
+
+                return {
+                    "supervisor": True,
+                    "docker": docker_ok,
+                    "wallet": wallet_ok,
+                    "wallet_error": wallet_error,
+                    "ollama": ollama_ok,
+                    "ollama_models": ollama_models,
+                }
+            except Exception as exc:
+                logger.warning("Health endpoint failed: %s", exc)
+                return {
+                    "supervisor": True,
+                    "docker": False,
+                    "wallet": False,
+                    "ollama": False,
+                }
 
         @app.post("/api/v1/request_spending")
         async def request_spending(payload: Dict) -> Dict:

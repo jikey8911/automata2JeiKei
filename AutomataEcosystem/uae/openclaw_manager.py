@@ -9,7 +9,9 @@ skeleton and safety plumbing are provided.
 from __future__ import annotations
 
 import logging
-from typing import Optional
+import subprocess
+import shutil
+from typing import Optional, List
 
 import docker
 from docker.errors import DockerException, APIError, NotFound
@@ -114,6 +116,36 @@ class OpenClawManager:
         except (APIError, DockerException) as exc:
             logger.exception("Failed to kill worker %s: %s", container_id, exc)
             raise
+
+    # -------- Skill runtime helpers -------- #
+    def ensure_brew(self) -> bool:
+        """
+        Best-effort check/install of Homebrew (Linuxbrew). Many base images
+        won't have brew; we log and continue instead of raising hard errors.
+        """
+        brew_path = shutil.which("brew")
+        if brew_path:
+            logger.info("brew found at %s", brew_path)
+            return True
+
+        logger.warning("brew not found in this container. Skills requiring brew may fail. Skipping install.")
+        return False
+
+    def install_with_brew(self, packages: List[str]) -> None:
+        """
+        Install skill dependencies with brew if available.
+        """
+        if not packages:
+            return
+        if not self.ensure_brew():
+            logger.warning("install_with_brew skipped; brew unavailable.")
+            return
+        for pkg in packages:
+            try:
+                logger.info("Installing skill dependency via brew: %s", pkg)
+                subprocess.run(["brew", "install", pkg], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            except subprocess.CalledProcessError as exc:
+                logger.warning("brew install failed for %s: %s", pkg, exc)
 
 
 __all__ = ["OpenClawManager"]
