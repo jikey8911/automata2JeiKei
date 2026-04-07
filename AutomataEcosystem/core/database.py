@@ -268,7 +268,7 @@ class UaeRegistry:
             return [dict(row) for row in rows]
 
 
-__all__ = ["EncryptedSecretStore", "UaeRegistry", "ModelAuditLog", "DiscoveredSectors"]
+__all__ = ["EncryptedSecretStore", "UaeRegistry", "ModelAuditLog", "DiscoveredSectors", "UaeStrategies"]
 
 
 class ModelAuditLog:

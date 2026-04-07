@@ -8,6 +8,8 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import json
+from datetime import datetime
 from typing import Dict, List
 
 import httpx
@@ -35,6 +37,33 @@ uae_log_buffer: List[str] = []
 console = Console(theme=Theme({"good": "green", "bad": "red", "info": "cyan"}))
 
 
+class LocalMemory:
+    """
+    Saves UAE's individual experience to a local JSON file.
+    """
+    def __init__(self, filename: str = "memory.json"):
+        self.filename = filename
+        self.data: List[Dict] = self._load()
+
+    def _load(self) -> List[Dict]:
+        if os.path.exists(self.filename):
+            with open(self.filename, "r") as f:
+                try:
+                    return json.load(f)
+                except:
+                    return []
+        return []
+
+    def add_entry(self, entry: Dict):
+        entry["timestamp"] = datetime.now().isoformat()
+        self.data.append(entry)
+        with open(self.filename, "w") as f:
+            json.dump(self.data[-100:], f, indent=2)  # Keep last 100 entries
+
+    def get_context(self) -> str:
+        return "\n".join([f"- {d.get('msg')}" for d in self.data[-10:]])
+
+
 class UaeAgent:
     def __init__(self, store: EncryptedSecretStore) -> None:
         self.store = store
@@ -44,7 +73,28 @@ class UaeAgent:
         self.research = ResearchTool()
         self.claw = OpenClawManager()
         self.sectors_db = DiscoveredSectors(store)
+        self.memory = LocalMemory()
         logger.info("UAE Agent initialized: %s | UID: %s", UAE_ID, SUB_UID)
+
+    async def bootstrap(self) -> bool:
+        """
+        Initial handshake with supervisor.
+        """
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                resp = await client.get(f"{SUPERVISOR_URL}/api/v1/uae/config/{UAE_ID}")
+                resp.raise_for_status()
+                self.config = resp.json()
+                
+                # Update sub-components with fetched config
+                self.exchange.set_config(self.config)
+                self.brain.set_config(self.config)
+                
+                logger.info("Bootstrap successful for %s. Sub-UID: %s", UAE_ID, self.config.get("sub_uid"))
+                return True
+        except Exception as e:
+            logger.error("Bootstrap failed: %s", e)
+            return False
 
     async def get_balances(self) -> Dict[str, float]:
         """
@@ -54,18 +104,38 @@ class UaeAgent:
 
     async def run(self) -> None:
         console.log(f"[info]Iniciando UAE Agent Autónomo: {UAE_ID}[/info]")
+        
+        # a) Bootstrap initial config
+        if not await self.bootstrap():
+            console.log("[bad]Error crítico: No se pudo obtener la configuración del Supervisor.[/bad]")
+            return
+
         # Start heartbeat loop in background
         asyncio.create_task(self._heartbeat_loop())
         
         while True:
             try:
-                # a) Buscar oportunidad
+                # b) Consultar Inteligencia Colectiva (Estrategias previas)
+                existing_strats = []
+                try:
+                    async with httpx.AsyncClient() as client:
+                        resp = await client.get(f"{SUPERVISOR_URL}/api/v1/strategies?limit=5")
+                        if resp.ok:
+                            existing_strats = resp.json()
+                except:
+                    pass
+
+                # c) Buscar oportunidad propia o evaluar compartidas
                 opp = self.research.find_opportunity()
+                
+                memory_context = self.memory.get_context()
+                
                 task_prompt = (
-                    f"Generar un script de Python que automatice una oportunidad en el sector {opp.get('sector')}. "
-                    f"Objetivo: {opp.get('query')}. "
-                    f"Detalle del Lead: {opp.get('lead')}. "
-                    "El script debe ser autónomo, manejar errores y reportar resultados por consola."
+                    f"Memoria Local:\n{memory_context}\n\n"
+                    f"Estrategias Exitosas Compartidas:\n{json.dumps(existing_strats, indent=2)}\n\n"
+                    f"Nueva Oportunidad Detectada en sector {opp.get('sector')}: {opp.get('query')}.\n"
+                    f"Detalle: {opp.get('lead')}.\n"
+                    "Instrucción: Evalúa si es mejor replicar una estrategia exitosa o ejecutar la nueva oportunidad."
                 )
                 msg = f"[BUSCANDO] {opp.get('query')}"
                 console.log(f"[cyan]{msg}[/cyan]")
@@ -117,19 +187,24 @@ class UaeAgent:
                         msg = f"[GANANCIA] Sector {opp.get('query')}: ${profit}"
                         console.log(f"[good]{msg}[/good]")
                         uae_log_buffer.append(msg)
+                        self.memory.add_entry({"msg": msg, "profit": profit})
                         
-                        # Notificar profit inmediato al supervisor
+                        # Reportar estrategia exitosa a la Inteligencia Colectiva
                         async with httpx.AsyncClient() as client:
                             await client.post(
-                                f"{SUPERVISOR_URL}/api/v1/uae/heartbeat", 
+                                f"{SUPERVISOR_URL}/api/v1/strategies/report",
                                 json={
-                                    "uae_id": UAE_ID, 
-                                    "profit": profit, 
-                                    "logs": [msg]
+                                    "uae_id": UAE_ID,
+                                    "sector": opp.get("query"),
+                                    "idea": task_prompt,
+                                    "code": code,
+                                    "status": "PROFITABLE",
+                                    "profit": profit
                                 }
                             )
                         self.sectors_db.upsert(sector_name=opp.get("query", "Unknown"), uae_id=UAE_ID, status="profitable")
                     else:
+                        self.memory.add_entry({"msg": f"Fallo en {opp.get('query')}", "profit": 0})
                         self.sectors_db.upsert(sector_name=opp.get("query", "Unknown"), uae_id=UAE_ID, status="failed")
 
             except Exception as exc:

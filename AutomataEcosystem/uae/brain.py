@@ -32,6 +32,13 @@ class BrainAgent:
         self.claude_api_key = os.getenv("ANTHROPIC_API_KEY")
         self.claude_client = Anthropic(api_key=self.claude_api_key) if self.claude_api_key else None
 
+    def set_config(self, config: Dict[str, Any]) -> None:
+        """
+        Update brain with dynamic config from bootstrap.
+        """
+        self.ollama_url = config.get("ollama_url", self.ollama_url)
+        logger.info("BrainAgent configuration updated | Ollama: %s", self.ollama_url)
+
     async def generate_with_ollama(self, prompt: str, model: str = "deepseek-coder:6.7b") -> str:
         payload = {"model": model, "prompt": prompt, "stream": False}
         try:

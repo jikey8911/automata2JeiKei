@@ -82,6 +82,7 @@ class Supervisor:
         self.virtual_cards = VirtualCardManager(self.exchange)
         self.registry = UaeRegistry(self.secret_store)
         self.sectors = DiscoveredSectors(self.secret_store)
+        self.strats = UaeStrategies(self.secret_store)
         self.liquidity_cushion = liquidity_cushion
         self.uae_logs = defaultdict(lambda: deque(maxlen=100))
         self.new_log_event = asyncio.Event()
@@ -472,6 +473,50 @@ class Supervisor:
                 return {"ok": True}
             except Exception as e:
                 raise HTTPException(status_code=500, detail=str(e))
+
+        @app.get("/api/v1/uae/config/{uae_id}")
+        async def get_uae_config(uae_id: str):
+            try:
+                # Find uae in registry
+                all_uaes = self.registry.list_all()
+                uae = next((u for u in all_uaes if u["uae_id"] == uae_id), None)
+                if not uae:
+                    raise HTTPException(status_code=404, detail="UAE not registered")
+                
+                # Fetch relevant secrets
+                config = {
+                    "sub_uid": uae["bybit_subaccount_id"],
+                    "ollama_url": self.secret_store.get_secret("OLLAMA_URL") or "http://163.192.114.190:11435",
+                    "ccxt_proxy_url": self.secret_store.get_secret("CCXT_PROXY_URL"),
+                    "model": self.secret_store.get_secret("SUPERVISOR_MODEL") or "deepseek-coder:6.7b",
+                    "vcc": {
+                        "card_id": uae["vcc_card_id"],
+                        "number": self.secret_store._fernet.decrypt(uae["vcc_number_enc"]).decode("utf-8"),
+                        "cvv": self.secret_store._fernet.decrypt(uae["vcc_cvv_enc"]).decode("utf-8"),
+                        "exp": self.secret_store._fernet.decrypt(uae["vcc_exp_enc"]).decode("utf-8"),
+                    }
+                }
+                return config
+            except Exception as e:
+                logger.error("Error retrieving config for %s: %s", uae_id, e)
+                raise HTTPException(status_code=500, detail=str(e))
+
+        @app.get("/api/v1/strategies")
+        async def get_strategies(limit: int = 10):
+            return self.strats.get_profitable_strategies(limit=limit)
+
+        @app.post("/api/v1/strategies/report")
+        async def report_strategy(payload: Dict):
+            uae_id = payload.get("uae_id")
+            sector = payload.get("sector")
+            idea = payload.get("idea")
+            code = payload.get("code")
+            status = payload.get("status")
+            profit = payload.get("profit", 0.0)
+            
+            self.strats.record(uae_id, sector, idea, code, status, profit)
+            logger.info("Strategy reported by %s for sector %s (status: %s)", uae_id, sector, status)
+            return {"ok": True}
 
         return app
 

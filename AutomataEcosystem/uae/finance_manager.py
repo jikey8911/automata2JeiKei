@@ -33,8 +33,16 @@ class UaeFinanceManager:
         self._cache_ttl = 40.0
         
         if not self.uid:
-            logger.warning("UaeFinanceManager initialized WITHOUT a UID. Some calls may fail.")
+            logger.warning("UaeFinanceManager initialized WITHOUT a UID. Waiting for bootstrap.")
         logger.info("UaeFinanceManager ready | UID: %s | Proxy: %s", self.uid, self.proxy_url)
+
+    def set_config(self, config: Dict[str, Any]) -> None:
+        """
+        Updates UID and Proxy URL from Supervisor bootstrap config.
+        """
+        self.uid = config.get("sub_uid", self.uid)
+        self.proxy_url = config.get("ccxt_proxy_url", self.proxy_url)
+        logger.info("UaeFinanceManager updated config | UID: %s | Proxy: %s", self.uid, self.proxy_url)
 
     async def _call_ccxt(self, method: str, args: list | None = None) -> Any:
         """
