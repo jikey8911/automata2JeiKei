@@ -94,6 +94,7 @@ class Supervisor:
         self._poll_task = None
         self._monitor_task = None
         self.app = self._build_api()
+        self.ollama_url = self.secret_store.get_secret("OLLAMA_URL") or os.getenv("OLLAMA_URL", "http://localhost:11434")
 
     def _connect_docker(self) -> docker.DockerClient:
         try:
@@ -566,6 +567,72 @@ class Supervisor:
             except Exception as exc:
                 logger.warning("logs endpoint failed: %s", exc)
                 return PlainTextResponse("Logs no disponibles", status_code=500)
+
+        @app.get("/api/v1/logs/summary")
+        async def logs_summary(limit: int = 200) -> Dict[str, Any]:
+            """
+            Resume logs de supervisor y UAEs en mensajes amigables usando Ollama (llama3.2:3b).
+            """
+            try:
+                sup_logs = ""
+                try:
+                    container = await asyncio.to_thread(self.client.containers.get, "automata_supervisor")
+                    raw = await asyncio.to_thread(container.logs, tail=limit)
+                    sup_logs = raw.decode("utf-8", errors="ignore")
+                except Exception:
+                    sup_logs = ""
+
+                uae_data = {}
+                uae_containers = await asyncio.to_thread(
+                    lambda: [c for c in self.client.containers.list(all=True) if c.name.startswith("UAE-")]
+                )
+                for c in uae_containers:
+                    try:
+                        raw = await asyncio.to_thread(c.logs, tail=limit)
+                        uae_data[c.name] = raw.decode("utf-8", errors="ignore")
+                    except Exception:
+                        uae_data[c.name] = ""
+
+                prompt = (
+                    "Eres un asistente que resume logs en 5 a 8 mensajes simples y accionables.\n"
+                    "Devuelve un JSON con una lista 'events'. Cada evento con campos: title, detail, severity (INFO/WARN/ERROR).\n"
+                    "Si no hay información, devuelve events vacía.\n"
+                )
+
+                async def summarize(text: str) -> list:
+                    if not text.strip():
+                        return []
+                    try:
+                        async with httpx.AsyncClient(timeout=15) as client:
+                            resp = await client.post(
+                                f\"{self.ollama_url}/api/generate\",
+                                json={
+                                    \"model\": \"llama3.2:3b\",
+                                    \"prompt\": f\"{prompt}\\nLogs:\\n{text}\\nRespuesta solo JSON:\",
+                                    \"stream\": False,
+                                },
+                            )
+                            resp.raise_for_status()
+                            data = resp.json()
+                            raw = data.get(\"response\", \"{}\" )
+                            match = re.search(r\"{.*}\", raw, re.DOTALL)
+                            if match:
+                                import json as _json
+                                parsed = _json.loads(match.group(0))
+                                return parsed.get(\"events\", [])
+                    except Exception as exc:
+                        logger.warning(\"Ollama summary failed: %s\", exc)
+                    return []
+
+                sup_summary = await summarize(sup_logs)
+                uae_summary = {}
+                for name, text in uae_data.items():
+                    uae_summary[name] = await summarize(text)
+
+                return {\"supervisor\": sup_summary, \"uaes\": uae_summary}
+            except Exception as exc:
+                logger.warning(\"logs_summary failed: %s\", exc)
+                return {\"supervisor\": [], \"uaes\": {}}
 
         @app.get("/api/v1/uae/logs")
         async def get_uae_logs():

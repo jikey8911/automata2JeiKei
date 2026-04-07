@@ -57,6 +57,11 @@ class BrainAgent:
         Extrae el bloque de código Python de la respuesta del LLM.
         Busca delimitadores de triple backticks (```python o ```).
         """
+        lower = text.lower()
+        for bad in ["i'm sorry", "no puedo", "no puedo ayudarte", "cannot", "sorry", "lo siento"]:
+            if bad in lower:
+                return ""
+
         # Intentar extraer bloque de código python
         pattern = r"```(?:python)?\s*(.*?)\s*```"
         match = re.search(pattern, text, re.DOTALL)
@@ -132,6 +137,12 @@ class BrainAgent:
         code = self._extract_code(raw_response)
         
         while attempts < 2:
+            if not code:
+                attempts += 1
+                logger.info("Empty/invalid code attempt %d, regenerating", attempts)
+                raw_response = await self.generate_with_ollama(full_prompt, model="codellama")
+                code = self._extract_code(raw_response)
+                continue
             ok, err = await self.validate_code(code)
             if ok:
                 return True, code

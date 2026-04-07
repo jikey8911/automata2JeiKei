@@ -25,9 +25,9 @@ export default function Home() {
     }
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     return `${protocol}//${window.location.host}${apiBase}`;
-  }, [apiBase]);
-  const [supervisorLogs, setSupervisorLogs] = useState<string[]>([]);
-  const [uaeLogs, setUaeLogs] = useState<Record<string, string[]>>({});
+  }, [apiBase]); // mantenido por compatibilidad, ya no se usa
+  const [supervisorLogs, setSupervisorLogs] = useState<any[]>([]);
+  const [uaeLogs, setUaeLogs] = useState<Record<string, any[]>>({});
   const [health, setHealth] = useState<HealthPayload | null>(null);
 
   const loadStatus = async () => {
@@ -65,71 +65,21 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    let socket: WebSocket | null = null;
-    const connectSupervisorWS = () => {
+    const fetchLogs = async () => {
       try {
-        socket = new WebSocket(`${wsBase}/v1/supervisor/logs/ws`);
-        socket.onmessage = (event) => {
-          const line = event.data;
-          setSupervisorLogs((prev) => [...prev.slice(-49), line]);
-        };
-        socket.onerror = () => {
-          console.warn("Supervisor WS error");
-        };
-        socket.onclose = () => {
-          setTimeout(connectSupervisorWS, 5000);
-        };
+        const res = await fetch(`${apiBase}/v1/logs/summary`);
+        if (!res.ok) return;
+        const json = await res.json();
+        setSupervisorLogs(json.supervisor || []);
+        setUaeLogs(json.uaes || {});
       } catch (e) {
-        console.error("Supervisor WS connection failed", e);
+        console.warn("No se pudo obtener resumen de logs", e);
       }
     };
-    connectSupervisorWS();
-    return () => socket?.close();
-  }, [wsBase]);
-
-  useEffect(() => {
-    let socket: WebSocket | null = null;
-    let pollId: any = null;
-
-    const connectWS = () => {
-      try {
-        socket = new WebSocket(`${wsBase}/v1/uae/logs/ws`);
-        socket.onmessage = (event) => {
-          const data = JSON.parse(event.data);
-          if (data.logs) setUaeLogs(data.logs);
-        };
-        socket.onerror = () => {
-          console.warn("WS error, falling back to polling");
-          startPolling();
-        };
-        socket.onclose = () => {
-          if (!pollId) setTimeout(connectWS, 5000);
-        };
-      } catch (e) {
-        startPolling();
-      }
-    };
-
-    const startPolling = async () => {
-      if (pollId) return;
-      const poll = async () => {
-        try {
-          const res = await fetch(`${apiBase}/v1/uae/logs`);
-          const data = await res.json();
-          setUaeLogs(data);
-        } catch (e) {}
-      };
-      poll();
-      pollId = setInterval(poll, 5000);
-    };
-
-    connectWS();
-
-    return () => {
-      socket?.close();
-      if (pollId) clearInterval(pollId);
-    };
-  }, [apiBase, wsBase]);
+    fetchLogs();
+    const id = setInterval(fetchLogs, 15000);
+    return () => clearInterval(id);
+  }, [apiBase]);
 
   const handleMitosis = async (id: string) => {
     try {
@@ -254,10 +204,18 @@ export default function Home() {
           <NeoPanel glow className="border-white/10">
             <p className="text-xs uppercase text-slate-400 mb-3">Logs Supervisor</p>
             <div className="space-y-1 text-xs text-slate-200 max-h-64 overflow-y-auto">
-              {supervisorLogs.map((l, idx) => (
-                <div key={idx} className="border-b border-white/5 pb-1 whitespace-pre-wrap">{l}</div>
+              {supervisorLogs.map((l: any, idx: number) => (
+                <div key={idx} className="border-b border-white/5 pb-1">
+                  <div className="flex justify-between">
+                    <span className="font-semibold">{l.title || "Evento"}</span>
+                    <span className={`text-xs ${l.severity === "ERROR" ? "text-red-400" : l.severity === "WARN" ? "text-amber-300" : "text-emerald-300"}`}>
+                      {l.severity || "INFO"}
+                    </span>
+                  </div>
+                  <div className="text-slate-300 whitespace-pre-wrap">{l.detail || ""}</div>
+                </div>
               ))}
-              {supervisorLogs.length === 0 && <div className="text-slate-500">Sin logs aún</div>}
+              {(!supervisorLogs || supervisorLogs.length === 0) && <div className="text-slate-500">Sin eventos</div>}
             </div>
           </NeoPanel>
 
@@ -269,12 +227,21 @@ export default function Home() {
                   <div key={uid} className="bg-white/5 rounded p-2 border border-white/5">
                     <div className="flex justify-between items-center mb-2 border-b border-white/10 pb-1">
                       <span className="text-blue-400 font-bold font-mono">{uid}</span>
-                      <span className="text-[10px] text-slate-500">Últimos {logs.length} logs</span>
+                      <span className="text-[10px] text-slate-500">Eventos {logs.length}</span>
                     </div>
-                    <div className="font-mono text-[10px] space-y-0.5">
-                      {logs.map((log, i) => (
-                        <div key={i} className="leading-tight break-all opacity-90 hover:opacity-100">{log}</div>
+                    <div className="space-y-1">
+                      {(logs as any[]).map((ev, i) => (
+                        <div key={i} className="leading-tight">
+                          <div className="flex justify-between text-[11px]">
+                            <span className="font-semibold">{ev.title || "Evento"}</span>
+                            <span className={`text-[10px] ${ev.severity === "ERROR" ? "text-red-400" : ev.severity === "WARN" ? "text-amber-300" : "text-emerald-300"}`}>
+                              {ev.severity || "INFO"}
+                            </span>
+                          </div>
+                          <div className="text-slate-300 text-[11px] whitespace-pre-wrap">{ev.detail || ""}</div>
+                        </div>
                       ))}
+                      {(logs as any[]).length === 0 && <div className="text-slate-500">Sin eventos</div>}
                     </div>
                   </div>
                 ))
