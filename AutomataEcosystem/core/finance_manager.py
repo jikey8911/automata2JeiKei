@@ -284,8 +284,16 @@ class ExchangeManager:
         if self.exchange_name != "bybit":
             return {"error": "terminate_subaccount no implementado para este exchange"}
         try:
+            # Probar método V5; si no existe, intentar variante sin V5.
+            try:
+                return await self._call_ccxt(
+                    "privatePostV5UserDeleteSubMember",
+                    {"uid": str(sub_uid)}
+                )
+            except Exception:
+                pass
             res = await self._call_ccxt(
-                "privatePostV5UserDeleteSubMember",
+                "privatePostUserDeleteSubMember",
                 {"uid": str(sub_uid)}
             )
             logger.info("Subcuenta %s marcada para terminación", sub_uid)

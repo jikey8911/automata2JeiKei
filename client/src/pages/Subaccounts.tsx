@@ -55,7 +55,9 @@ export default function Subaccounts() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-white">Subcuentas Bybit</h1>
-          <p className="text-sm text-slate-400">Saldo, estado y adopción por UAEs.</p>
+          <p className="text-sm text-slate-400">
+            Saldo, estado y adopción por UAEs. Total: {items.length}
+          </p>
         </div>
         <Button variant="outline" onClick={load} disabled={loading}>
           <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
@@ -64,6 +66,9 @@ export default function Subaccounts() {
       </div>
 
       {error && <div className="text-red-400 text-sm">{error}</div>}
+      {!loading && !error && items.length === 0 && (
+        <div className="text-slate-300 text-sm">No hay subcuentas para mostrar.</div>
+      )}
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {items.map((sub) => (
