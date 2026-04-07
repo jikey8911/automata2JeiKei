@@ -9,23 +9,43 @@ type UaeRegistryEntry = {
   balance?: number;
 };
 
+type AvailableSubaccount = {
+  uid: string;
+  username: string;
+};
+
 export default function UaeList() {
   const apiBase = useMemo(() => import.meta.env.VITE_API_URL || "/api", []);
   const [uaes, setUaes] = useState<UaeRegistryEntry[]>([]);
+  const [availableSubs, setAvailableSubs] = useState<AvailableSubaccount[]>([]);
   const [loading, setLoading] = useState(true);
+  const [editingUae, setEditingUae] = useState<string | null>(null);
 
   const load = async () => {
     try {
       setLoading(true);
-      const res = await fetch(`${apiBase}/v1/uaes`);
+      // CORRECCIÓN: El endpoint es /v1/uae/list y devuelve { uaes: [...] }
+      const res = await fetch(`${apiBase}/v1/uae/list`);
       if (res.ok) {
         const json = await res.json();
-        setUaes(json);
+        setUaes(json.uaes || []);
       }
     } catch (e) {
       console.error("Failed to fetch UAEs", e);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadAvailable = async () => {
+    try {
+      const res = await fetch(`${apiBase}/v1/uae/available_subaccounts`);
+      if (res.ok) {
+        const json = await res.json();
+        setAvailableSubs(json.available || []);
+      }
+    } catch (e) {
+      console.error("Failed to fetch available subs", e);
     }
   };
 
@@ -79,10 +99,7 @@ export default function UaeList() {
     }
   };
 
-  const handleChangeSubaccount = async (uaeId: string, currentSubUid: string) => {
-    const newSubUid = window.prompt(`Nuevo UID de Bybit para ${uaeId}:`, currentSubUid);
-    if (!newSubUid || newSubUid === currentSubUid) return;
-
+  const updateSubaccount = async (uaeId: string, newSubUid: string) => {
     try {
       const res = await fetch(`${apiBase}/v1/uae/registry/subaccount/${uaeId}`, {
         method: "PATCH",
@@ -90,7 +107,7 @@ export default function UaeList() {
         body: JSON.stringify({ sub_uid: newSubUid })
       });
       if (res.ok) {
-        alert("Subcuenta actualizada");
+        setEditingUae(null);
         load();
       } else {
         const err = await res.json();
@@ -103,6 +120,7 @@ export default function UaeList() {
 
   useEffect(() => {
     load();
+    loadAvailable();
   }, []);
 
   return (
@@ -156,17 +174,38 @@ export default function UaeList() {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-mono text-slate-400">
-                          {uae.bybit_subaccount_id}
-                        </span>
-                        <button 
-                          onClick={() => handleChangeSubaccount(uae.uae_id, uae.bybit_subaccount_id)}
-                          className="p-1 text-blue-500 hover:text-blue-400 opacity-0 group-hover:opacity-100 transition-all"
-                          title="Cambiar Subcuenta"
-                        >
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-                        </button>
+                      <div className="flex items-center gap-2 min-w-[200px]">
+                        {editingUae === uae.uae_id ? (
+                          <div className="flex items-center gap-2 w-full">
+                            <select 
+                              className="bg-slate-900 border border-white/20 rounded px-2 py-1 text-xs w-full outline-none focus:border-blue-500"
+                              defaultValue={uae.bybit_subaccount_id}
+                              onChange={(e) => updateSubaccount(uae.uae_id, e.target.value)}
+                            >
+                              <option value={uae.bybit_subaccount_id}>{uae.bybit_subaccount_id} (Actual)</option>
+                              {availableSubs.map(s => (
+                                <option key={s.uid} value={s.uid}>{s.username} ({s.uid})</option>
+                              ))}
+                            </select>
+                            <button onClick={() => setEditingUae(null)} className="text-slate-500 hover:text-white">✕</button>
+                          </div>
+                        ) : (
+                          <>
+                            <span className="text-xs font-mono text-slate-400">
+                              {uae.bybit_subaccount_id}
+                            </span>
+                            <button 
+                              onClick={() => {
+                                setEditingUae(uae.uae_id);
+                                loadAvailable();
+                              }}
+                              className="p-1 text-blue-500 hover:text-blue-400 opacity-0 group-hover:opacity-100 transition-all border border-blue-500/20 rounded"
+                              title="Cambiar Subcuenta"
+                            >
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                            </button>
+                          </>
+                        )}
                       </div>
                     </td>
                     <td className="px-6 py-4 text-right">
@@ -184,12 +223,21 @@ export default function UaeList() {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <button 
-                        onClick={() => handleTransfer(uae.uae_id)}
-                        className="px-3 py-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold rounded shadow-lg shadow-emerald-500/20 transition-all active:scale-95"
-                      >
-                        FONDER
-                      </button>
+                      <div className="flex justify-end items-center gap-3">
+                        <button 
+                          onClick={() => handleTransfer(uae.uae_id)}
+                          className="px-3 py-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold rounded shadow-lg shadow-emerald-500/20 transition-all active:scale-95"
+                        >
+                          FONDER
+                        </button>
+                        <button 
+                          onClick={() => handleDeleteRegistry(uae.uae_id)}
+                          title="Borrar Registro"
+                          className="p-1.5 text-slate-600 hover:text-rose-500 hover:bg-rose-500/10 rounded transition-all"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

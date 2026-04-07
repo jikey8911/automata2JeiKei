@@ -441,6 +441,23 @@ class Supervisor:
             
             return {"ok": True, "res": res}
 
+        @app.get("/api/v1/uae/available_subaccounts")
+        async def api_get_available_subaccounts():
+            """
+            Lista las subcuentas de Bybit que NO están asignadas a ninguna UAE en el registro.
+            """
+            try:
+                # 1. Obtener todas las subcuentas reales de Bybit
+                real_subs = await self.exchange.list_subaccounts()
+                # 2. Obtener todas las asignaciones en DB
+                assigned_uids = {r.get("bybit_subaccount_id") for r in self.registry.list_all()}
+                # 3. Filtrar las que no están asignadas
+                available = [s for s in real_subs if str(s["uid"]) not in assigned_uids]
+                return {"available": available}
+            except Exception as e:
+                logger.error("Failed to fetch available subaccounts: %s", e)
+                raise HTTPException(status_code=500, detail=str(e))
+
         @app.patch("/api/v1/uae/registry/subaccount/{uae_id}")
         async def api_update_uae_subaccount(uae_id: str, payload: Dict):
             """
