@@ -14,7 +14,7 @@ import logging
 import os
 import sqlite3
 from pathlib import Path
-from typing import Iterable, Optional
+from typing import Iterable, Optional, List
 
 from cryptography.fernet import Fernet, InvalidToken
 
@@ -364,3 +364,62 @@ class DiscoveredSectors:
                 "SELECT sector_name, discoverer_uae_id, status, created_at FROM discovered_sectors;"
             ).fetchall()
             return [dict(row) for row in rows]
+
+
+class UaeStrategies:
+    """
+    Stores successful investment strategies for collective intelligence.
+    """
+
+    def __init__(self, store: EncryptedSecretStore) -> None:
+        self.store = store
+        self._init_table()
+
+    def _init_table(self) -> None:
+        try:
+            with self.store._get_connection() as conn:  # type: ignore[attr-defined]
+                conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS uae_strategies (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        uae_id TEXT NOT NULL,
+                        sector_name TEXT NOT NULL,
+                        investment_idea TEXT NOT NULL,
+                        code_snippet TEXT NOT NULL,
+                        status TEXT NOT NULL, -- PROFITABLE, LOSS, FAILURE
+                        profit_loss REAL DEFAULT 0.0,
+                        execution_count INTEGER DEFAULT 0,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    );
+                    """
+                )
+                conn.commit()
+        except Exception as exc:
+            logger.exception("Failed to init uae_strategies: %s", exc)
+            raise
+
+    def record(self, uae_id: str, sector: str, idea: str, code: str, status: str, profit: float) -> None:
+        try:
+            with self.store._get_connection() as conn:  # type: ignore[attr-defined]
+                conn.execute(
+                    """
+                    INSERT INTO uae_strategies (uae_id, sector_name, investment_idea, code_snippet, status, profit_loss, execution_count)
+                    VALUES (?, ?, ?, ?, ?, ?, 1);
+                    """,
+                    (uae_id, sector, idea, code, status, profit),
+                )
+                conn.commit()
+        except Exception as exc:
+            logger.exception("Failed to record strategy: %s", exc)
+
+    def get_profitable_strategies(self, limit: int = 10) -> List[dict]:
+        try:
+            with self.store._get_connection() as conn:  # type: ignore[attr-defined]
+                rows = conn.execute(
+                    "SELECT * FROM uae_strategies WHERE status = 'PROFITABLE' ORDER BY profit_loss DESC LIMIT ?;",
+                    (limit,)
+                ).fetchall()
+                return [dict(row) for row in rows]
+        except Exception as exc:
+            logger.exception("Failed to fetch strategies: %s", exc)
+            return []

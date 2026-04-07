@@ -46,7 +46,7 @@ SECRET_KEYS = [
     "CCXT_PROXY_URL",
 ]
 
-from .database import EncryptedSecretStore, UaeRegistry, DiscoveredSectors
+from .database import EncryptedSecretStore, UaeRegistry, DiscoveredSectors, UaeStrategies
 from .finance_manager import ExchangeManager, VirtualCardManager
 from .supervisor_brain import SupervisorBrain
 
