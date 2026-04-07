@@ -84,7 +84,7 @@ class ExchangeManager:
             raise
         self._init_audit_db()
 
-    async def _remote_call(self, method: str, args: list | None = None) -> Dict:
+    async def _remote_call(self, method: str, args: list | None = None, kwargs: dict | None = None) -> Dict:
         """
         Si CCXT_PROXY_URL está definido, manda la llamada a un ejecutor remoto (por ej. PC con Tailscale).
         """
@@ -97,6 +97,7 @@ class ExchangeManager:
             "uid": self.master_uid,
             "method": method,
             "args": args or [],
+            "kwargs": kwargs or {},
         }
         async with httpx.AsyncClient(timeout=10.0) as client:
             r = await client.post(self.ccxt_proxy.rstrip("/") + "/ejecutar", json=payload)
@@ -137,8 +138,8 @@ class ExchangeManager:
         Otherwise, it uses the local ccxt client.
         """
         if self.ccxt_proxy:
-            # Remote execution expects args as a list
-            return await self._remote_call(method_name, list(args))
+            # Remote execution expects args as a list and kwargs as a dict
+            return await self._remote_call(method_name, list(args), kwargs)
         else:
             method = getattr(self.client, method_name)
             return await self._call(method, *args, **kwargs)
