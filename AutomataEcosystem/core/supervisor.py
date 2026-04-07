@@ -43,7 +43,7 @@ import docker
 from docker.errors import APIError, DockerException, NotFound
 
 from .database import EncryptedSecretStore, UaeRegistry, DiscoveredSectors
-from .finance_manager import BybitManager, VirtualCardManager
+from .finance_manager import ExchangeManager, VirtualCardManager
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -73,8 +73,8 @@ class Supervisor:
         self.secret_store = secret_store or EncryptedSecretStore()
         self.target_platform = target_platform
         self.client = docker_client or self._connect_docker()
-        self.bybit = BybitManager(secret_store=self.secret_store)
-        self.virtual_cards = VirtualCardManager(self.bybit)
+        self.exchange = ExchangeManager(secret_store=self.secret_store)
+        self.virtual_cards = VirtualCardManager(self.exchange)
         self.registry = UaeRegistry(self.secret_store)
         self.sectors = DiscoveredSectors(self.secret_store)
         self.liquidity_cushion = liquidity_cushion
@@ -112,7 +112,7 @@ class Supervisor:
                 raise RuntimeError("Failed to create Bybit sub UID")
 
             try:
-                await self.bybit.distribute_to_uae(sub_uid, capital)
+                await self.exchange.distribute_to_uae(sub_uid, capital)
                 card = await self.virtual_cards.issue_card(sub_uid, capital)
             except Exception as exc:
                 logger.warning("Funding/card step failed (continuando sin fondos): %s", exc)
@@ -283,7 +283,7 @@ class Supervisor:
                     ]
                 )
                 sectors = list(self.sectors.list_all())
-                balances = await self.bybit.get_genesis_balance()
+                balances = await self.exchange.get_genesis_balance()
                 return {"containers": containers, "sectors": sectors, "genesis_balance": balances}
             except Exception as exc:
                 logger.exception("Status endpoint failed: %s", exc)
@@ -304,7 +304,7 @@ class Supervisor:
                 wallet_ok = False
                 wallet_error = ""
                 try:
-                    await self.bybit.get_genesis_balance()
+                    await self.exchange.get_genesis_balance()
                     wallet_ok = True
                 except Exception as exc:
                     wallet_ok = False
@@ -347,7 +347,7 @@ class Supervisor:
             uae_id = payload.get("uae_id", "unknown")
             logger.info("Spending request from %s: %.2f | %s", uae_id, amount, justification)
             try:
-                balances = await self.bybit.get_genesis_balance()
+                balances = await self.exchange.get_genesis_balance()
                 total = sum(balances.values())
                 if amount > total:
                     raise HTTPException(status_code=402, detail="Insufficient Genesis balance")
@@ -410,7 +410,7 @@ class Supervisor:
             balances,
         )
         # After each heartbeat, enforce liquidity rule
-        await self.bybit.rebalance_to_funding(cushion=self.liquidity_cushion)
+        await self.exchange.rebalance_to_funding(cushion=self.liquidity_cushion)
 
     async def _funding_poll_loop(self) -> None:
         last_total = 0.0
