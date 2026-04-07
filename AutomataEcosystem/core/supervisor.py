@@ -12,6 +12,7 @@ import uuid
 from collections import deque, defaultdict
 from datetime import datetime
 from typing import Dict, List, Any, Optional
+from pathlib import Path
 
 import asyncio
 import docker
@@ -44,6 +45,7 @@ SECRET_KEYS = [
     "NANO_BANANA_API_KEY",
     "NOTION_API_KEY",
     "CCXT_PROXY_URL",
+    "OPENCLAW_GATEWAY_TOKEN",
 ]
 
 from .database import EncryptedSecretStore, UaeRegistry, DiscoveredSectors, UaeStrategies
@@ -90,6 +92,9 @@ class Supervisor:
         self.uae_states = {}
         self.new_log_event = asyncio.Event()
         self.brain = SupervisorBrain()
+        # CEO/OpenClaw defaults
+        self.openclaw_image = os.getenv("OPENCLAW_IMAGE", "openclaw/openclaw:latest")
+        self.openclaw_gateway_port = int(os.getenv("OPENCLAW_GATEWAY_PORT", "18789"))
         
         # Monitoring task for UAE life cycles
         self._poll_task = None
@@ -106,6 +111,123 @@ class Supervisor:
             return client
         except DockerException as exc:
             logger.exception("Docker connection failed: %s", exc)
+            raise
+
+    def boot_ceo(self) -> None:
+        """
+        Boot the global OpenClaw CEO container (infra-level).
+        """
+        try:
+            workspace = Path("AutomataEcosystem/data/souls/CEO_WORKSPACE").resolve()
+            workspace.mkdir(parents=True, exist_ok=True)
+
+            soul_path = workspace / "SOUL.md"
+            if not soul_path.exists():
+                soul_path.write_text(
+                    "Eres el CEO de AutomataEcosystem. "
+                    "Tu trabajo es diseñar agentes y escribir sus archivos de configuración.\n"
+                )
+
+            token = self.secret_store.get_secret("OPENCLAW_GATEWAY_TOKEN")
+            if not token:
+                token = uuid.uuid4().hex
+                self.secret_store.set_secret("OPENCLAW_GATEWAY_TOKEN", token)
+
+            image = self.openclaw_image
+            container_name = os.getenv("OPENCLAW_CEO_NAME", "openclaw-ceo")
+
+            try:
+                existing = self.client.containers.get(container_name)
+                if existing.status != "running":
+                    existing.remove(force=True)
+            except Exception:
+                pass
+
+            self.client.containers.run(
+                image=image,
+                name=container_name,
+                detach=True,
+                environment={
+                    "OPENCLAW_GATEWAY_TOKEN": token,
+                },
+                ports={f"{self.openclaw_gateway_port}/tcp": self.openclaw_gateway_port},
+                volumes={
+                    str(workspace): {"bind": "/root/.openclaw/workspace", "mode": "rw"}
+                },
+                network="automata_net",
+                auto_remove=False,
+            )
+            logger.info("OpenClaw CEO container '%s' booted on port %s", container_name, self.openclaw_gateway_port)
+        except Exception as exc:
+            logger.error("Failed to boot CEO container: %s", exc)
+
+    async def test_ceo_connection(self) -> None:
+        """
+        Simple check against the CEO Gateway REST endpoint.
+        """
+        url = os.getenv("OPENCLAW_GATEWAY_URL", "http://localhost:18789/api/status")
+        token = self.secret_store.get_secret("OPENCLAW_GATEWAY_TOKEN")
+        headers = {}
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+            headers["x-api-key"] = token
+
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                resp = await client.get(url, headers=headers)
+                logger.info("CEO gateway status %s: %s", resp.status_code, resp.text[:200])
+        except Exception as exc:
+            logger.warning("CEO gateway test failed: %s", exc)
+
+    def _generate_soul(self, workspace: Path, uae_name: str, models: Dict[str, str]) -> None:
+        workspace.mkdir(parents=True, exist_ok=True)
+        soul_path = workspace / "SOUL.md"
+        if not soul_path.exists():
+            soul_path.write_text(
+                f"Eres el CEO de {uae_name}. "
+                "Tu trabajo es diseñar agentes y escribir sus archivos de configuración. "
+                "Prioriza Ollama; escala a modelos de pago solo si fallan dos intentos o la tarea es crítica.\n"
+            )
+        config_path = workspace / "config.json"
+        if not config_path.exists():
+            import json
+            config_path.write_text(json.dumps({"models": models}, indent=2))
+
+    def _boot_openclaw_uae(self, name: str, env: Dict[str, str], workspace: Path) -> str:
+        """
+        Lanza un contenedor OpenClaw que actuará como CEO de la UAE específica.
+        """
+        try:
+            token_key = f"OPENCLAW_GATEWAY_TOKEN_{name}"
+            token = self.secret_store.get_secret(token_key)
+            if not token:
+                token = uuid.uuid4().hex
+                self.secret_store.set_secret(token_key, token)
+            env = dict(env)
+            env["OPENCLAW_GATEWAY_TOKEN"] = token
+
+            # Limpia contenedor previo si existe
+            try:
+                existing = self.client.containers.get(name)
+                if existing.status != "running":
+                    existing.remove(force=True)
+            except Exception:
+                pass
+
+            container = self.client.containers.run(
+                image=self.openclaw_image,
+                name=name,
+                detach=True,
+                environment=env,
+                ports={f"{self.openclaw_gateway_port}/tcp": None},  # map aleatorio para evitar colisión; usamos red interna
+                volumes={str(workspace): {"bind": "/root/.openclaw/workspace", "mode": "rw"}},
+                network="automata_net",
+                auto_remove=False,
+            )
+            logger.info("UAE %s (OpenClaw) lanzada", name)
+            return container.id
+        except Exception as exc:
+            logger.error("No se pudo lanzar contenedor OpenClaw para %s: %s", name, exc)
             raise
 
     def _ensure_network(self) -> None:
@@ -188,7 +310,7 @@ class Supervisor:
         command: Optional[str] = None,
     ) -> str:
         """
-        Flujo de Orquestación: Exchange (Descubrir/Crear) -> Docker (Spawn) -> Fondeo (Transferencia/VCC).
+        Flujo de Orquestación: Exchange (Descubrir/Crear) -> Docker OpenClaw -> Fondeo (Transferencia/VCC).
         """
         try:
             logger.info("Orchestrating UAE '%s' | Capital: %.2f", name, capital)
@@ -206,33 +328,27 @@ class Supervisor:
             if not sub_uid:
                 raise RuntimeError(f"Imposible asignar subcuenta para {name}")
 
-            # FASE 2: Desplegar Recurso Computacional (Docker)
-            # Preparamos entorno sin tarjeta por ahora (se inyectará vía config posterior o handshake)
+            # FASE 2: Desplegar Recurso Computacional (OpenClaw CEO por UAE)
             env = environment or {}
             env.update({
                 "UAE_NAME": name,
                 "BYBIT_SUB_UID": sub_uid,
-                "OLLAMA_URL": "http://163.192.114.190:11435",
-                "SUPERVISOR_URL": "http://supervisor:8000",
+                "OLLAMA_URL": self.ollama_url,
+                "SUPERVISOR_URL": os.getenv("SUPERVISOR_URL", "http://automata_supervisor:8000"),
             })
-            # Inyectar otros secretos (GenAI, GitHub, etc.)
             for key in SECRET_KEYS:
                 val = self.secret_store.get_secret(key)
                 if val:
                     env.setdefault(key, val)
 
-            logger.info("Iniciando contenedor Docker para '%s' con UID=%s", name, sub_uid)
-            container = await asyncio.to_thread(
-                self.client.containers.run,
-                image=image,
-                name=name,
-                detach=True,
-                environment=env,
-                command=command,
-                auto_remove=False,
-                network="automata_net",
-                volumes={"/var/run/docker.sock": {"bind": "/var/run/docker.sock", "mode": "rw"}},
-            )
+            workspace = Path(f"AutomataEcosystem/data/souls/{name}").resolve()
+            models_cfg = {
+                "primary_model": "llama3.2:3b",
+                "code_model": "deepseek-coder:6.7b",
+                "ollama_url": self.ollama_url,
+            }
+            self._generate_soul(workspace, name, models_cfg)
+            container_id = await asyncio.to_thread(self._boot_openclaw_uae, name, env, workspace)
             
             # FASE 3: Fondeo y Registro (Solo si el contenedor arrancó)
             card = { "card_id": "vcc-placeholder", "number": "0000", "cvv": "000", "exp": "12/30" }
@@ -249,7 +365,6 @@ class Supervisor:
             self.registry.register(
                 uae_id=name,
                 sub_uid=sub_uid,
-                sub_account_name=name,
                 card_id=card["card_id"],
                 card_number=card["number"],
                 card_cvv=card["cvv"],
@@ -257,8 +372,8 @@ class Supervisor:
                 status="active",
             )
 
-            logger.info("UAE '%s' orquestada con éxito. Container ID=%s", name, container.id)
-            return container.id
+            logger.info("UAE '%s' orquestada con éxito. Container ID=%s", name, container_id)
+            return container_id
 
         except Exception as exc:
             logger.exception("Falla crítica en orquestación de UAE '%s': %s", name, exc)
