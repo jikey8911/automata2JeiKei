@@ -246,23 +246,32 @@ class ExchangeManager:
         """
         try:
             if self.exchange_name == "bybit":
-                # Intentamos obtener el saldo de la cuenta unificada (UNIFIED)
-                res = await self._call_ccxt(
-                    "privateGetV5AssetTransferQuerySubMemberBalance",
-                    {
-                        "memberId": str(sub_uid),
-                        "coin": coin,
-                        "accountType": "UNIFIED"
-                    }
-                )
-                
-                result_data = res.get("result", {})
-                balance_list = result_data.get("list", [])
-                
-                for item in balance_list:
-                    if item.get("coin") == coin:
-                        # 'transferBalance' es el saldo disponible para mover/operar
-                        return float(item.get("transferBalance") or 0.0)
+                # Fallback 1: usar fetch_balance con uid
+                try:
+                    fb = await self._call_ccxt("fetch_balance", {"uid": str(sub_uid)})
+                    if isinstance(fb, dict):
+                        total = fb.get("total", {})
+                        if coin in total:
+                            return float(total.get(coin) or 0.0)
+                except Exception:
+                    pass
+                # Fallback 2: endpoint específico si está disponible en ccxt
+                try:
+                    res = await self._call_ccxt(
+                        "privatePostV5AssetTransferQuerySubMemberBalance",
+                        {
+                            "memberId": str(sub_uid),
+                            "coin": coin,
+                            "accountType": "UNIFIED"
+                        }
+                    )
+                    result_data = res.get("result", {})
+                    balance_list = result_data.get("list", [])
+                    for item in balance_list:
+                        if item.get("coin") == coin:
+                            return float(item.get("transferBalance") or 0.0)
+                except Exception:
+                    pass
             return 0.0
         except Exception as exc:
             logger.error("Failed to fetch balance for subaccount %s: %s", sub_uid, exc)

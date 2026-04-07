@@ -13,7 +13,7 @@ type SubItem = {
   orphan: boolean;
 };
 
-const api = (path: string) => `${import.meta.env.VITE_API_URL?.replace(/\/$/, "")}${path}`;
+const api = (path: string) => `${import.meta.env.VITE_API_URL?.replace(/\/$/, "")}${path.startsWith("/") ? path : `/${path}`}`;
 
 export default function Subaccounts() {
   const [items, setItems] = useState<SubItem[]>([]);

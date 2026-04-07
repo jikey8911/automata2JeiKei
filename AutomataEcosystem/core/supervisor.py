@@ -529,6 +529,11 @@ class Supervisor:
                 logger.error("api_list_subaccounts failed: %s", exc)
                 raise HTTPException(status_code=500, detail=str(exc))
 
+        # Alias sin /v1 para compatibilidad con front actual
+        @app.get("/api/subaccounts")
+        async def api_list_subaccounts_legacy():
+            return await api_list_subaccounts()
+
         @app.delete("/api/v1/subaccounts/{sub_uid}")
         async def api_delete_subaccount(sub_uid: str):
             """
@@ -543,6 +548,10 @@ class Supervisor:
             except Exception as exc:
                 logger.error("api_delete_subaccount failed: %s", exc)
                 raise HTTPException(status_code=500, detail=str(exc))
+
+        @app.delete("/api/subaccounts/{sub_uid}")
+        async def api_delete_subaccount_legacy(sub_uid: str):
+            return await api_delete_subaccount(sub_uid)
 
         @app.patch("/api/v1/uae/registry/subaccount/{uae_id}")
         async def api_update_uae_subaccount(uae_id: str, payload: Dict):
