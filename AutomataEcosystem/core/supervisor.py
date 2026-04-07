@@ -95,7 +95,7 @@ class Supervisor:
         self._poll_task = None
         self._monitor_task = None
         self.app = self._build_api()
-        self.ollama_url = self.secret_store.get_secret("OLLAMA_URL") or os.getenv("OLLAMA_URL", "http://localhost:11434")
+        self.ollama_url = self.secret_store.get_secret("OLLAMA_URL") or os.getenv("OLLAMA_URL", "http://163.192.114.190:11435")
 
     def _connect_docker(self) -> docker.DockerClient:
         try:
@@ -595,9 +595,9 @@ class Supervisor:
                         uae_data[c.name] = ""
 
                 prompt = (
-                    "Eres un asistente que resume logs en 5 a 8 mensajes simples y accionables.\n"
-                    "Devuelve un JSON con una lista 'events'. Cada evento con campos: title, detail, severity (INFO/WARN/ERROR).\n"
-                    "Si no hay información, devuelve events vacía.\n"
+                    "Resume los siguientes logs en 5-8 mensajes simples y accionables.\n"
+                    "Devuelve JSON con 'events': [{title, detail, severity (INFO/WARN/ERROR)}]. Si no hay datos, events vacío.\n"
+                    "Sé breve: no repitas texto largo ni preámbulos."
                 )
 
                 async def summarize(text: str) -> list:
@@ -620,13 +620,15 @@ class Supervisor:
                             if len(events) >= 8:
                                 break
                         return events
+                    # limitar longitud para evitar truncado en Ollama
+                    trimmed = text[-2000:]
                     try:
                         async with httpx.AsyncClient(timeout=15) as client:
                             resp = await client.post(
                                 f"{self.ollama_url}/api/generate",
                                 json={
                                     "model": "llama3.2:3b",
-                                    "prompt": f"{prompt}\nLogs:\n{text}\nRespuesta solo JSON:",
+                                    "prompt": f"{prompt}\nLogs:\n{trimmed}\nRespuesta solo JSON:",
                                     "stream": False,
                                 },
                             )
