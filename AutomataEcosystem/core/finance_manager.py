@@ -181,46 +181,51 @@ class ExchangeManager:
 
     async def create_subaccount(self, name: str) -> Optional[str]:
         """
-        Intentar crear subcuenta en Bybit usando v5 create_sub_account.
-        Aplica sanitización estricta (Bybit rules: 6-16 chars, alfanumérico).
+        Intentar crear subcuenta en Bybit usando v5.
+        Reglas Bybit: 6-16 chars, alfanumérico, único.
         """
         try:
             if self.exchange_name == "bybit":
                 # 1. Sanitizar: Solo letras y números
                 clean_name = "".join(filter(str.isalnum, name))
-                # 2. Asegurar que empiece con letra (prefijo 'uae' si es necesario)
+                
+                # 2. Asegurar inicio con letra y longitud mínima
                 if not clean_name or not clean_name[0].isalpha():
                     clean_name = "uae" + clean_name
-                # 3. Añadir sufijo aleatorio para unicidad y ajustar longitud (6-16)
-                suffix = secrets.token_hex(2) # 4 chars
+                
+                # 3. Añadir sufijo aleatorio y truncar a 16 max
+                suffix = secrets.token_hex(2)  # 4 caracteres
+                # Dejamos espacio para el sufijo cortando el nombre a 12
                 final_name = (clean_name[:12] + suffix).lower()
+                
+                # 4. Padding si es demasiado corto (Bybit pide min 6)
                 if len(final_name) < 6:
-                    final_name = final_name.ljust(6, "x")
+                    final_name = final_name.ljust(6, "0")
 
                 logger.info("Sanitized subaccount name: %s -> %s", name, final_name)
                 
-                # Usamos la llamada directa a la API V5 de Bybit para mayor precisión
+                # 5. Llamada corregida con 'username'
                 res = await self._call_ccxt(
                     "privatePostV5UserCreateSubMember", 
                     {
-                        "subMemberName": final_name,
-                        "memberType": 1,  # 1: Normal Sub Account
-                        "switch": 1       # 1: Quick login enabled
+                        "username": final_name,
+                        "memberType": 1,
+                        "switch": 1
                     }
                 )
-                # Bybit V5 retorna el resultado en 'result'
+                
                 result_data = res.get("result", {})
-                sub_uid = result_data.get("uid") or result_data.get("subMemberId")
+                # En V5 el campo suele ser 'uid'
+                sub_uid = result_data.get("uid")
+                
                 if sub_uid:
-                    logger.info("Successfully created Bybit subaccount: %s for UAE %s", sub_uid, name)
+                    logger.info("Successfully created Bybit subaccount: %s", sub_uid)
                     return str(sub_uid)
             
-            # Fallback
+            # Fallback si no es Bybit o algo sale mal
             fallback = self.master_uid or os.getenv("BYBIT_FALLBACK_SUB_UID")
-            if fallback:
-                logger.info("Using fallback sub UID=%s", fallback)
-                return fallback
-            return None
+            return str(fallback) if fallback else None
+
         except Exception as exc:
             logger.warning("create_subaccount failed on %s: %s", self.exchange_name, exc)
             return None
