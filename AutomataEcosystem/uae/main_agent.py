@@ -84,7 +84,12 @@ async def main_loop() -> None:
     while True:
         # a) Buscar oportunidad
         opp = research.find_opportunity()
-        task_prompt = f"Sector: {opp.get('sector')} | Query: {opp.get('query')} | Lead: {opp.get('lead')}"
+        task_prompt = (
+            f"Generar un script de Python que automatice una oportunidad en el sector {opp.get('sector')}. "
+            f"Objetivo: {opp.get('query')}. "
+            f"Detalle del Lead: {opp.get('lead')}. "
+            "El script debe ser autónomo, manejar errores y reportar resultados por consola."
+        )
         msg = f"[BUSCANDO] {task_prompt}"
         console.log(f"[cyan]{msg}[/cyan]")
         uae_log_buffer.append(msg)
